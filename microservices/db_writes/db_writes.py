@@ -11,8 +11,8 @@ import os
 import write_service_pb2
 import write_service_pb2_grpc
 
-load_dotenv(override=True, dotenv_path='/Users/borisgans/personal/yaya/yaya_dev/.env')
 
+load_dotenv(override=True, dotenv_path='/Users/borisgans/personal/yaya/yaya_dev/.env')
 
 
 POSTGRE_DB = os.getenv("POSTGRE_DB")
@@ -36,8 +36,8 @@ pool = SimpleConnectionPool(1, 3,
     port=POSTGRE_WRITE_PORT
 )
 err_msg = ""
-
 print(f"Connection details: {POSTGRE_DB, POSTGRE_USER, POSTGRE_PW, POSTGRE_HOST, POSTGRE_WRITE_PORT}")
+
 
 def db_query(query: str, *params):
     conn = pool.getconn()
