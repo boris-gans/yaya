@@ -11,6 +11,9 @@ import os
 import write_service_pb2
 import write_service_pb2_grpc
 
+load_dotenv(override=True, dotenv_path='/Users/borisgans/personal/yaya/yaya_dev/.env')
+
+
 
 POSTGRE_DB = os.getenv("POSTGRE_DB")
 POSTGRE_USER = os.getenv("POSTGRE_USER")
@@ -34,6 +37,7 @@ pool = SimpleConnectionPool(1, 3,
 )
 err_msg = ""
 
+print(f"Connection details: {POSTGRE_DB, POSTGRE_USER, POSTGRE_PW, POSTGRE_HOST, POSTGRE_WRITE_PORT}")
 
 def db_query(query: str, *params):
     conn = pool.getconn()
@@ -106,7 +110,7 @@ class WriteService(write_service_pb2_grpc.WriteServiceServicer):
         try:
             query = """
             INSERT INTO user_data(
-                username, first_name, last_name, email, location, language, gender, age, spend_class, pw
+                username, first_name, last_name, email, location, language, gender, birthdate, spend_class, pw
             ) VALUES(%s, %s, %s, %s, %s, %s, %s, %s, %s, %s) RETURNING id;
             """
 
@@ -134,7 +138,9 @@ class WriteService(write_service_pb2_grpc.WriteServiceServicer):
     def CreateDj(self, request, context):
         print(f"Received data: {request.data}")
         try:
-
+            # MISSING: initial onboarding genres insert;
+                # FUTURE: background process to get monthly_streams, social_followers, and better genre representation
+                    # DB trigger to auto update metrics column when any of the above get updated
             query = """
             INSERT INTO dj (
                 alias, first_name, last_name, bio, location, email, phone
@@ -214,6 +220,8 @@ class WriteService(write_service_pb2_grpc.WriteServiceServicer):
     def CreateOrganizer(self, request, context):
         print(f"Received data: {request.data}")
         try:
+            # FUTURE: make website optional?
+                # Question: do we need to know features about organizers? Yes, for DJ -> event matching
             query = """
             INSERT INTO organizer (
                 name, first_name, last_name, email, phone, country, website
@@ -242,12 +250,11 @@ class WriteService(write_service_pb2_grpc.WriteServiceServicer):
         try:
 
             query = """
-                INSERT INTO published_events (event_id, dj_id, event_poster, bio)
+                INSERT INTO published_events (event_id, event_poster, bio)
                 VALUES (%s, %s, %s, %s) RETURNING event_id;
             """
             values = (
                 request.data.event_id,
-                request.data.dj_id,
                 request.data.event_poster,
                 request.data.bio
             )
@@ -258,7 +265,27 @@ class WriteService(write_service_pb2_grpc.WriteServiceServicer):
         except Exception as e:
             print(f"Exception during writing: {e}")
             return write_service_pb2.CreateEntityResponse(success=False, message=f"Exception during writing: {e}")
+        
+    def AddDjEvent(self, request, context):
+        print(f"Received data: {request.data}")
+        try:
 
+            query = """
+                INSERT INTO event_dj (event_id, dj_id)
+                VALUES (%s, %s) RETURNING event_id;
+            """
+            values = (
+                request.data.event_id, 
+                request.data.dj_id
+            )
+
+            if db_query(query, *values) is None:
+                return write_service_pb2.CreateEntityResponse(success=False, message=f"DB Error: Unable to add DJ to event: {err_msg}")
+
+            return write_service_pb2.CreateEntityResponse(success=True, message="DJ added to event successfully!")
+        except Exception as e:
+            print(f"Exception during writing: {e}")
+            return write_service_pb2.CreateEntityResponse(success=False, message=f"Exception during writing: {e}")
 
 # Run gRPC Server
 def serve():

@@ -19,7 +19,7 @@ import json
 import httpx
 # switch to pyodbc or asyncodbc for azure SQL
 
-load_dotenv()
+load_dotenv(override=True, dotenv_path='/Users/borisgans/personal/yaya/yaya_dev/.env')
 
 
 # POSTGRE
@@ -28,7 +28,10 @@ POSTGRE_USER = os.getenv("POSTGRE_USER")
 POSTGRE_PW = os.getenv("POSTGRE_PW")
 POSTGRE_HOST = os.getenv("POSTGRE_HOST")
 POSTGRE_WRITE_PORT = os.getenv("POSTGRE_WRITE_PORT")
-POSTGRE_READ_PORT = os.getenv("POSTGRE_READ_PORT")
+# POSTGRE_READ_PORT = os.getenv("POSTGRE_READ_PORT")
+
+POSTGRE_READ_PORT = POSTGRE_WRITE_PORT
+# temp for local db
 
 # JWT
 SECRET_KEY = os.getenv("SECRET_KEYS_CURRENT")
@@ -43,6 +46,8 @@ GRPC_INSC_CHANNEL = os.getenv("GRPC_INSC_CHANNEL")
 # ENDPOINTS
 DB_READER_SERVICE_URL = os.getenv("DB_READER_SERVICE_URL")
 # WRITE_SERVICE_REST_URL = "http://localhost:8001/write/"
+
+print(f"Connection details: {POSTGRE_DB, POSTGRE_USER, POSTGRE_PW, POSTGRE_HOST, POSTGRE_WRITE_PORT}")
 
 
 
@@ -129,13 +134,21 @@ def handle_publish(data):
     response = grpc_stub.PublishEvent(request)
     return {"Success": response.success, "Message": response.message}
 
+def handle_dj_event(data):
+    print(f"Sync data: {data}")
+
+    request = write_service_pb2.CreateDjEventRequest(data=data)
+    response = grpc_stub.AddDjEvent(request)
+    return {"Success": response.success, "Message": response.message}
+
 type_handlers = {
     "event": handle_event,
     "venue": handle_venue,
     "user": handle_user,
     "dj": handle_dj,
     "org": handle_org,
-    "publish_event": handle_publish
+    "publish_event": handle_publish,
+    "dj_event": handle_dj_event
 }
 
 
@@ -240,7 +253,7 @@ async def get_current_user_postgres(username: str, pw: str):
     try:
         async with db_pool.acquire() as conn:
             row = await conn.fetchrow(
-                "SELECT id, username, first_name, last_name, email, location FROM user_data WHERE username = $1 AND pw = $2",
+                "SELECT id, username, first_name, last_name, email, location, language FROM user_data WHERE username = $1 AND pw = $2",
                 username, pw
             )
             if not row:
