@@ -252,7 +252,7 @@ class WriteService(write_service_pb2_grpc.WriteServiceServicer):
 
             query = """
                 INSERT INTO published_events (event_id, event_poster, bio)
-                VALUES (%s, %s, %s, %s) RETURNING event_id;
+                VALUES (%s, %s, %s) RETURNING event_id;
             """
             values = (
                 request.data.event_id,
