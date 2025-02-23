@@ -41,7 +41,7 @@ message UserData {
   string location = 5;
   string language = 6;
   Gender gender = 7;
-  int32 age = 8;
+  string birthdate = 12;
   optional SpendClass spend_class = 9;
   bool music_service = 10;
   string pw = 11;

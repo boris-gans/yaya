@@ -114,6 +114,7 @@ class WriteService(write_service_pb2_grpc.WriteServiceServicer):
             ) VALUES(%s, %s, %s, %s, %s, %s, %s, %s, %s, %s) RETURNING id;
             """
 
+            birth_datetime = datetime.fromisoformat(request.data.birthdate)
             values = (
                 request.data.username,
                 request.data.first_name,
@@ -122,7 +123,7 @@ class WriteService(write_service_pb2_grpc.WriteServiceServicer):
                 request.data.location,
                 request.data.language,
                 GENDER_MAP.get(request.data.gender, 'Other'),
-                request.data.age,
+                birth_datetime,
                 'NA', #when user registers spend class will never be known
                 request.data.pw,
             )
