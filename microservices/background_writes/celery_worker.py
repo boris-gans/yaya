@@ -3,6 +3,7 @@ import pika
 import json
 import os
 from dotenv import load_dotenv
+from enum import Enum
 
 # Load environment variables
 load_dotenv()
@@ -13,12 +14,28 @@ celery = Celery(
     broker=os.getenv("CELERY_BROKER_URL", "pyamqp://guest@localhost//")
 )
 
-@celery.task(name="tasks.publish_message")
-def publish_message(message: str, routing_key: str = "default"):
+class MetricType(Enum):
+    CLICK = "click"
+    IMPRESSION = "impression"
+    SHARE = "share"
+    SAVE = "save"
+
+@celery.task(name="tasks.publish_metric")
+def publish_metric(event_id: int, metric_type: str):
     """
-    Publishes a message to RabbitMQ exchange with specified routing key
+    Publishes an event metric to RabbitMQ with appropriate routing
     """
     try:
+        # Validate metric type
+        if metric_type not in [m.value for m in MetricType]:
+            raise ValueError(f"Invalid metric type: {metric_type}")
+
+        # Create message
+        message = {
+            "event_id": event_id,
+            "metric_type": metric_type
+        }
+
         # Create connection
         connection = pika.BlockingConnection(
             pika.ConnectionParameters(host="localhost")
@@ -27,33 +44,34 @@ def publish_message(message: str, routing_key: str = "default"):
 
         # Declare exchange
         channel.exchange_declare(
-            exchange="yaya_events",
+            exchange="event_metrics",
             exchange_type="direct",
             durable=True
         )
 
-        # Declare queue and bind it to exchange
-        channel.queue_declare(queue="default_queue", durable=True)
+        # Declare queue for each metric type
+        queue_name = f"metric_{metric_type}"
+        channel.queue_declare(queue=queue_name, durable=True)
         channel.queue_bind(
-            exchange="yaya_events",
-            queue="default_queue",
-            routing_key=routing_key
+            exchange="event_metrics",
+            queue=queue_name,
+            routing_key=metric_type
         )
 
         # Publish message
         channel.basic_publish(
-            exchange="yaya_events",
-            routing_key=routing_key,
+            exchange="event_metrics",
+            routing_key=metric_type,
             body=json.dumps(message),
             properties=pika.BasicProperties(
                 delivery_mode=2,  # make message persistent
             )
         )
 
-        print(f" [x] Sent {message} with routing key {routing_key}")
+        print(f" [x] Sent {metric_type} metric for event {event_id}")
         connection.close()
         return True
 
     except Exception as e:
-        print(f"Error publishing message: {e}")
+        print(f"Error publishing metric: {e}")
         return False

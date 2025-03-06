@@ -7,6 +7,9 @@ from google.protobuf.timestamp_pb2 import Timestamp
 from contextlib import asynccontextmanager
 from db_writes import write_service_pb2, write_service_pb2_grpc
 from dotenv import load_dotenv
+from background_writes.celery_worker import publish_message
+from enum import Enum
+from asyncio import create_task, TimeoutError
 import os
 import grpc
 import os
@@ -17,9 +20,9 @@ import requests
 import base64
 import json
 import httpx
-from asyncio import create_task, TimeoutError
 import time
-from background_writes.celery_worker import publish_message
+
+
 
 load_dotenv(override=True, dotenv_path='/Users/borisgans/personal/yaya/yaya_dev/.env')
 
@@ -56,6 +59,13 @@ user_data = {}
 sensitive_data = {}
 body_data = {}
 db_pool = None
+
+
+class MetricType(Enum):
+    CLICK = "click"
+    IMPRESSION = "impression"
+    SHARE = "share"
+    SAVE = "save"
 
 
 # gRPC Channel to the write microservice
@@ -318,12 +328,20 @@ async def essential_write(data: dict):
 @app.post("/background_write/")
 async def background_write(data: dict):
     """
-    Test endpoint for background message publishing
+    Endpoint for background message publishing, this will be for non-essential writes such as: num_clicks, num_impressions, etc.
     """
+    # sample json
+    data = {
+        'metric_type': 'click',
+        'event_id': 1
+    }
+    if data.get('metric_type') not in [m.value for m in MetricType]:
+        raise HTTPException(status_code=400, detail="Invalid metric type")
+
     # Queue the task in Celery
     task = publish_message.delay(
-        message="Hello World!",
-        routing_key="test.message"
+        event_id=data.get("event_id"),
+        metric_type=data.get("metric_type")
     )
     
     return {
