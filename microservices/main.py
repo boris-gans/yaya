@@ -373,3 +373,7 @@ def protected(token: str):
 
     print(f"Encoded data:\n {user}")
     return {"message": f"Hello, User {user[1]['user_id']}!", "other_data": user[1]}
+
+if __name__ == "__main__":
+    import uvicorn
+    uvicorn.run(app, host="0.0.0.0", port=8000, reload=True)
