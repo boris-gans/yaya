@@ -134,6 +134,16 @@ async def get_user_recommendation_data(
     pool=Depends(db.get_connection)
 ) -> Dict:
     """Fetch and aggregate user event history data for recommendations."""
+    
+    # Check Redis cache first
+    redis_key = f"user_rec_data:{user_id}"
+    cached_data = redis_client.get(redis_key)
+    if cached_data:
+        print(f"Cache hit for user {user_id}")
+        return json.loads(cached_data)
+    
+    print(f"Cache miss for user {user_id}, querying database...")
+    
     async with pool.acquire() as conn:
         # First get user's core data and genres
         user_query = """
@@ -230,6 +240,17 @@ async def get_user_recommendation_data(
 
         # Parse any JSON strings in the result
         result = parse_json_fields(result)
+        
+        try:
+            # Cache for 6 hours; change to 3 in production
+            redis_client.setex(
+                redis_key,
+                21600, 
+                json.dumps(result)
+            )
+            print(f"Cached recommendation data for user {user_id}")
+        except Exception as e:
+            print(f"Failed to cache data: {e}")
         
     return result
 
