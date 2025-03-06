@@ -97,3 +97,54 @@ BEGIN
     RETURN NEW;
 END;
 $function$
+
+-- Create trigger for user_genres table
+CREATE TRIGGER trigger_update_user_genre_distribution 
+AFTER INSERT OR DELETE OR UPDATE ON public.user_genres 
+FOR EACH ROW EXECUTE FUNCTION update_user_genre_distribution();
+
+-- Create function to update user genre distribution
+CREATE OR REPLACE FUNCTION public.update_user_genre_distribution()
+ RETURNS trigger
+ LANGUAGE plpgsql
+AS $function$
+DECLARE
+    genre_json JSONB;
+BEGIN
+    -- Initialize genre distribution with all genres set to 0
+    genre_json := jsonb_build_object(
+        'house', 0,
+        'edm', 0,
+        'reggaeton', 0,
+        'd&b', 0,
+        'techno', 0,
+        'deep house', 0,
+        'afro house', 0
+    );
+
+    -- Update genre distribution based on existing user_genres
+    SELECT jsonb_object_agg(g.name, 1) 
+    INTO genre_json
+    FROM user_genres ug
+    JOIN genres g ON ug.genre_id = g.id
+    WHERE ug.user_id = NEW.user_id;
+
+    -- Ensure all genres are present in genre_json (set missing ones to 0)
+    genre_json := genre_json || jsonb_build_object(
+        'house', COALESCE(genre_json->>'house', '0')::INT,
+        'edm', COALESCE(genre_json->>'edm', '0')::INT,
+        'reggaeton', COALESCE(genre_json->>'reggaeton', '0')::INT,
+        'd&b', COALESCE(genre_json->>'d&b', '0')::INT,
+        'techno', COALESCE(genre_json->>'techno', '0')::INT,
+        'deep house', COALESCE(genre_json->>'deep house', '0')::INT,
+        'afro house', COALESCE(genre_json->>'afro house', '0')::INT
+    );
+
+    -- Update user_data with the new genre_dist value
+    UPDATE user_data
+    SET genre_dist = genre_json
+    WHERE id = NEW.user_id;
+
+    RETURN NEW;
+END;
+$function$;

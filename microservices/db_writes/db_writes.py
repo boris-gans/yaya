@@ -108,9 +108,11 @@ class WriteService(write_service_pb2_grpc.WriteServiceServicer):
         print(f"Received data: {request}")
 
         try:
+            # First insert the user
             query = """
             INSERT INTO user_data(
-                username, first_name, last_name, email, location, language, gender, birthdate, spend_class, pw
+                username, first_name, last_name, email, location, language, 
+                gender, birthdate, spend_class, pw
             ) VALUES(%s, %s, %s, %s, %s, %s, %s, %s, %s, %s) RETURNING id;
             """
 
@@ -124,17 +126,55 @@ class WriteService(write_service_pb2_grpc.WriteServiceServicer):
                 request.data.language,
                 GENDER_MAP.get(request.data.gender, 'Other'),
                 birth_datetime,
-                'NA', #when user registers spend class will never be known
+                'NA',  # when user registers spend class will never be known
                 request.data.pw,
             )
 
-            if db_query(query, *values) is None:
-                return write_service_pb2.CreateEntityResponse(success=False, message=f"DB Error: {err_msg}")
+            user_id = db_query(query, *values)
+            if user_id is None:
+                return write_service_pb2.CreateEntityResponse(
+                    success=False, 
+                    message=f"DB Error: {err_msg}"
+                )
 
-            return write_service_pb2.CreateEntityResponse(success=True, message="User created!")
+            # If genres are specified, insert them using genre_id
+            if request.data.genres:
+                # Map proto enum values to database genre_ids
+                GENRE_ID_MAP = {
+                    0: 4,  # DNB -> genre_id
+                    1: 2,  # EDM -> genre_id
+                    2: 1,  # HOUSE -> genre_id
+                    3: 5,  # TECHNO -> genre_id
+                    4: 3,  # REGGAETON -> genre_id
+                    5: 6,  # AFRO_HOUSE -> genre_id
+                    6: 7   # DEEP_HOUSE -> genre_id
+                }
+                
+                genre_query = """
+                INSERT INTO user_genres (user_id, genre_id)
+                VALUES (%s, %s) RETURNING user_id;
+                """
+                
+                # Insert each genre_id for the user
+                for genre_enum in request.data.genres:
+                    genre_id = GENRE_ID_MAP.get(genre_enum)
+                    if genre_id:
+                        if db_query(genre_query, user_id, genre_id) is None:
+                            return write_service_pb2.CreateEntityResponse(
+                                success=False,
+                                message=f"DB Error while inserting genres: {err_msg}"
+                            )
+
+            return write_service_pb2.CreateEntityResponse(
+                success=True, 
+                message="User created successfully!"
+            )
         except Exception as e:
             print(f"Exception during writing: {e}")
-            return write_service_pb2.CreateEntityResponse(success=False, message=f"Unexpected Exception: {e}")
+            return write_service_pb2.CreateEntityResponse(
+                success=False, 
+                message=f"Unexpected Exception: {e}"
+            )
 
     def CreateDj(self, request, context):
         print(f"Received data: {request.data}")

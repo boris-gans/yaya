@@ -33,6 +33,16 @@ enum SpendClass {
     NA = 5;
 }
 
+enum Genre {
+    DNB = 0;
+    EDM = 1;
+    HOUSE = 2;
+    TECHNO = 3;
+    REGGAETON = 4;
+    AFRO_HOUSE = 5;
+    DEEP_HOUSE = 6;
+}
+
 message UserData {
   string username = 1;
   string first_name = 2;
@@ -45,6 +55,7 @@ message UserData {
   optional SpendClass spend_class = 9;
   bool music_service = 10;
   string pw = 11;
+  repeated Genre genres = 13;
 }
 
 message CreateUserRequest {

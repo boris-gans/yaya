@@ -135,7 +135,25 @@ async def get_user_recommendation_data(
 ) -> Dict:
     """Fetch and aggregate user event history data for recommendations."""
     async with pool.acquire() as conn:
-        # Use DISTINCT to avoid duplicate events
+        # First get user's core data and genres
+        user_query = """
+        SELECT 
+            core::json,
+            genres::json
+        FROM user_data 
+        WHERE id = $1;
+        """
+        user_data = await conn.fetchrow(user_query, user_id)
+        
+        # Initialize result with user data
+        result = {
+            "user_id": user_id,
+            "core": dict(user_data)['core'] if user_data else None,
+            "genres": dict(user_data)['genres'] if user_data else None,
+            "events": []
+        }
+
+        # Get event history if it exists
         purchase_query = """
         SELECT DISTINCT event_id 
         FROM purchase 
@@ -143,75 +161,59 @@ async def get_user_recommendation_data(
         """
         event_ids = await conn.fetch(purchase_query, user_id)
         
-        if not event_ids:
-            print(f"No event history found for user: {user_id}")
-            raise HTTPException(status_code=404, detail="No event history found")
-        
-        result = {
-            "user_id": user_id,
-            "events": []
-        }
-        
-        print(f"Event IDs: {event_ids}")
-
-        for record in event_ids:
-            event_id = record['event_id']
-            
-            event_query = """
-            SELECT 
-                id as event_id,
-                genre_dist::json,
-                venue_id
-            FROM event_data 
-            WHERE id = $1;
-            """
-            event_data = await conn.fetchrow(event_query, event_id)
-
-            print(f"Event Data: {event_data}")
-            
-            if event_data:
-                event_dict = dict(event_data)
+        if event_ids:  # Only process events if they exist
+            for record in event_ids:
+                event_id = record['event_id']
                 
-                venue_query = """
+                event_query = """
                 SELECT 
-                    language_distribution::json,
-                    type_distribution::json,
-                    features::json
-                FROM venues 
+                    id as event_id,
+                    genre_dist::json,
+                    venue_id
+                FROM event_data 
                 WHERE id = $1;
                 """
-                venue_data = await conn.fetchrow(venue_query, event_data['venue_id'])
-                if venue_data:
-                    event_dict['venue'] = dict(venue_data)
+                event_data = await conn.fetchrow(event_query, event_id)
                 
-                print(f"Venue Data: {venue_data}")
-                
-                dj_query = """
-                SELECT dj_id 
-                FROM event_dj 
-                WHERE event_id = $1;
-                """
-                dj_ids = await conn.fetch(dj_query, event_id)
-                
-                event_dict['djs'] = []
-                for dj_record in dj_ids:
-                    dj_id = dj_record['dj_id']
+                if event_data:
+                    event_dict = dict(event_data)
                     
-                    dj_data_query = """
+                    venue_query = """
                     SELECT 
-                        metrics::json,
                         language_distribution::json,
-                        genre_dist::json
-                    FROM dj 
+                        type_distribution::json,
+                        features::json
+                    FROM venues 
                     WHERE id = $1;
                     """
-                    dj_data = await conn.fetchrow(dj_data_query, dj_id)
-                    if dj_data:
-                        event_dict['djs'].append(dict(dj_data))
-                    print(f"Dj Data: {dj_data}")
-
-                
-                result['events'].append(event_dict)
+                    venue_data = await conn.fetchrow(venue_query, event_data['venue_id'])
+                    if venue_data:
+                        event_dict['venue'] = dict(venue_data)
+                    
+                    dj_query = """
+                    SELECT dj_id 
+                    FROM event_dj 
+                    WHERE event_id = $1;
+                    """
+                    dj_ids = await conn.fetch(dj_query, event_id)
+                    
+                    event_dict['djs'] = []
+                    for dj_record in dj_ids:
+                        dj_id = dj_record['dj_id']
+                        
+                        dj_data_query = """
+                        SELECT 
+                            metrics::json,
+                            language_distribution::json,
+                            genre_dist::json
+                        FROM dj 
+                        WHERE id = $1;
+                        """
+                        dj_data = await conn.fetchrow(dj_data_query, dj_id)
+                        if dj_data:
+                            event_dict['djs'].append(dict(dj_data))
+                    
+                    result['events'].append(event_dict)
         
         # Helper function to parse JSON strings
         def parse_json_fields(data):
@@ -226,7 +228,7 @@ async def get_user_recommendation_data(
                     return data
             return data
 
-        # After building the result, parse any JSON strings
+        # Parse any JSON strings in the result
         result = parse_json_fields(result)
         
     return result

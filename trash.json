@@ -1,77 +1,43 @@
 {
-    "user_id": 61,
+    "user_id": 71,
+    "core": {
+      "age": 19,
+      "gender": "Male",
+      "language": "dutch",
+      "location": "madrid"
+    },
+    "genres": {
+      "d&b": 1,
+      "edm": 1,
+      "house": 1,
+      "techno": 1,
+      "reggaeton": 1,
+      "afro house": 1,
+      "deep house": 1
+    },
     "events": [
       {
-        "event_id": 5,
+        "event_id": 1,
         "genre_dist": null,
-        "venue_id": 3,
+        "venue_id": 1,
         "venue": {
           "language_distribution": {
-            "dutch_ratio": 0.71,
-            "english_ratio": 0.29,
+            "dutch_ratio": 1,
+            "english_ratio": 0,
             "spanish_ratio": 0
           },
-          "type_distribution": null,
-          "features": {
-            "city": "madrid",
-            "avg_age": 20.43,
-            "avg_ctr": 0.2,
-            "capacity": 10000,
-            "num_events": 0,
-            "gender_ratio": 0.286,
-            "avg_fill_ratio": 0.001,
-            "avg_table_rate": 0.2,
-            "avg_table_revenue": 0,
-            "avg_ticket_revenue": 46447.99,
-            "avg_conversion_rate": 0.001
-          }
-        },
-        "djs": [
-          {
-            "metrics": {
-              "genres": {
-                "d&b": 0,
-                "edm": 0,
-                "house": 0,
-                "techno": 0,
-                "reggaeton": 0,
-                "afro_house": 0
-              },
-              "popularity": {
-                "num_events": 0,
-                "num_org_chats": 0,
-                "monthly_streams": 0,
-                "native_followers": 0,
-                "social_followers": 0,
-                "ticket_sales_rate": 0,
-                "avg_ticket_revenue": 0
-              }
-            },
-            "language_distribution": {
-              "english": 0.3333333333333333,
-              "spanish": 0.6666666666666666
-            },
-            "genre_dist": null
-          }
-        ]
-      },
-      {
-        "event_id": 7,
-        "genre_dist": null,
-        "venue_id": 5,
-        "venue": {
-          "language_distribution": {
-            "dutch_ratio": 0,
-            "english_ratio": 0,
-            "spanish_ratio": 1
+          "type_distribution": {
+            "club": 1,
+            "rooftop": 1,
+            "festival": 1,
+            "warehouse": 1
           },
-          "type_distribution": null,
           "features": {
-            "city": "Madrid",
-            "avg_age": 24,
+            "city": "greenwich",
+            "avg_age": 19,
             "avg_ctr": 0,
             "capacity": 100,
-            "num_events": 1,
+            "num_events": 0,
             "gender_ratio": 0,
             "avg_fill_ratio": 0.01,
             "avg_table_rate": 0,
@@ -83,9 +49,142 @@
         "djs": [
           {
             "metrics": {
-              "avg_age": 24,
+              "avg_age": 19,
               "avg_ctr": 0,
-              "num_events": 2,
+              "num_events": 4,
+              "gender_ratio": 0,
+              "num_org_chats": 0,
+              "avg_fill_ratio": 0,
+              "avg_table_rate": 0,
+              "monthly_streams": 0,
+              "native_followers": 0,
+              "social_followers": 0,
+              "avg_table_revenue": 0,
+              "avg_ticket_revenue": 6700.92,
+              "avg_conversion_rate": 0
+            },
+            "language_distribution": {
+              "dutch_ratio": 1,
+              "english_ratio": 0,
+              "spanish_ratio": 0
+            },
+            "genre_dist": null
+          },
+          {
+            "metrics": {
+              "avg_age": 20.25125,
+              "avg_ctr": 0.2,
+              "num_events": 3,
+              "gender_ratio": 0.25025,
+              "num_org_chats": 0,
+              "avg_fill_ratio": 0.00088,
+              "avg_table_rate": 0.2,
+              "monthly_streams": 10000,
+              "native_followers": 10,
+              "social_followers": 349483,
+              "avg_table_revenue": 0,
+              "avg_ticket_revenue": 41479.61,
+              "avg_conversion_rate": 0.00088
+            },
+            "language_distribution": {
+              "dutch_ratio": 0.74625,
+              "english_ratio": 0.25375,
+              "spanish_ratio": 0
+            },
+            "genre_dist": null
+          }
+        ]
+      },
+      {
+        "event_id": 3,
+        "genre_dist": null,
+        "venue_id": 3,
+        "venue": {
+          "language_distribution": {
+            "dutch_ratio": 0.8154545454545454,
+            "english_ratio": 0.18454545454545454,
+            "spanish_ratio": 0
+          },
+          "type_distribution": null,
+          "features": {
+            "city": "madrid",
+            "avg_age": 19.91,
+            "avg_ctr": 0.14545,
+            "capacity": 10000,
+            "num_events": 0,
+            "gender_ratio": 0.182,
+            "avg_fill_ratio": 0.00064,
+            "avg_table_rate": 0.14545,
+            "avg_table_revenue": 0,
+            "avg_ticket_revenue": 31994.51,
+            "avg_conversion_rate": 0.00064
+          }
+        },
+        "djs": [
+          {
+            "metrics": {
+              "avg_age": 20.25125,
+              "avg_ctr": 0.2,
+              "num_events": 3,
+              "gender_ratio": 0.25025,
+              "num_org_chats": 0,
+              "avg_fill_ratio": 0.00088,
+              "avg_table_rate": 0.2,
+              "monthly_streams": 0,
+              "native_followers": 0,
+              "social_followers": 0,
+              "avg_table_revenue": 0,
+              "avg_ticket_revenue": 41479.61,
+              "avg_conversion_rate": 0.00088
+            },
+            "language_distribution": {
+              "dutch_ratio": 0.74625,
+              "english_ratio": 0.25375,
+              "spanish_ratio": 0
+            },
+            "genre_dist": {
+              "d&b": 1,
+              "edm": 1,
+              "house": 1,
+              "techno": 1,
+              "reggaeton": 1,
+              "afro house": 1,
+              "deep house": 1
+            }
+          }
+        ]
+      },
+      {
+        "event_id": 4,
+        "genre_dist": null,
+        "venue_id": 3,
+        "venue": {
+          "language_distribution": {
+            "dutch_ratio": 0.8154545454545454,
+            "english_ratio": 0.18454545454545454,
+            "spanish_ratio": 0
+          },
+          "type_distribution": null,
+          "features": {
+            "city": "madrid",
+            "avg_age": 19.91,
+            "avg_ctr": 0.14545,
+            "capacity": 10000,
+            "num_events": 0,
+            "gender_ratio": 0.182,
+            "avg_fill_ratio": 0.00064,
+            "avg_table_rate": 0.14545,
+            "avg_table_revenue": 0,
+            "avg_ticket_revenue": 31994.51,
+            "avg_conversion_rate": 0.00064
+          }
+        },
+        "djs": [
+          {
+            "metrics": {
+              "avg_age": 23.166666666666668,
+              "avg_ctr": 0,
+              "num_events": 5,
               "gender_ratio": 0,
               "num_org_chats": 0,
               "avg_fill_ratio": 0.01,
@@ -98,9 +197,293 @@
               "avg_conversion_rate": 0
             },
             "language_distribution": {
-              "dutch_ratio": 0,
+              "dutch_ratio": 0.16666666666666666,
               "english_ratio": 0,
-              "spanish_ratio": 1
+              "spanish_ratio": 0.8333333333333334
+            },
+            "genre_dist": null
+          },
+          {
+            "metrics": {
+              "avg_age": 20.25125,
+              "avg_ctr": 0.2,
+              "num_events": 2,
+              "gender_ratio": 0.25025,
+              "num_org_chats": 0,
+              "avg_fill_ratio": 0.00088,
+              "avg_table_rate": 0.2,
+              "monthly_streams": 384909,
+              "native_followers": 284,
+              "social_followers": 33390,
+              "avg_table_revenue": 0,
+              "avg_ticket_revenue": 41479.61,
+              "avg_conversion_rate": 0.00088
+            },
+            "language_distribution": {
+              "dutch_ratio": 0.74625,
+              "english_ratio": 0.25375,
+              "spanish_ratio": 0
+            },
+            "genre_dist": null
+          }
+        ]
+      },
+      {
+        "event_id": 5,
+        "genre_dist": null,
+        "venue_id": 3,
+        "venue": {
+          "language_distribution": {
+            "dutch_ratio": 0.8154545454545454,
+            "english_ratio": 0.18454545454545454,
+            "spanish_ratio": 0
+          },
+          "type_distribution": null,
+          "features": {
+            "city": "madrid",
+            "avg_age": 19.91,
+            "avg_ctr": 0.14545,
+            "capacity": 10000,
+            "num_events": 0,
+            "gender_ratio": 0.182,
+            "avg_fill_ratio": 0.00064,
+            "avg_table_rate": 0.14545,
+            "avg_table_revenue": 0,
+            "avg_ticket_revenue": 31994.51,
+            "avg_conversion_rate": 0.00064
+          }
+        },
+        "djs": [
+          {
+            "metrics": {
+              "avg_age": 19,
+              "avg_ctr": 0,
+              "num_events": 4,
+              "gender_ratio": 0,
+              "num_org_chats": 0,
+              "avg_fill_ratio": 0,
+              "avg_table_rate": 0,
+              "monthly_streams": 0,
+              "native_followers": 0,
+              "social_followers": 0,
+              "avg_table_revenue": 0,
+              "avg_ticket_revenue": 6700.92,
+              "avg_conversion_rate": 0
+            },
+            "language_distribution": {
+              "dutch_ratio": 1,
+              "english_ratio": 0,
+              "spanish_ratio": 0
+            },
+            "genre_dist": null
+          }
+        ]
+      },
+      {
+        "event_id": 6,
+        "genre_dist": {
+          "d&b": 0,
+          "edm": 1,
+          "house": 1,
+          "techno": 0,
+          "reggaeton": 0,
+          "afro house": 0,
+          "deep house": 0
+        },
+        "venue_id": 3,
+        "venue": {
+          "language_distribution": {
+            "dutch_ratio": 0.8154545454545454,
+            "english_ratio": 0.18454545454545454,
+            "spanish_ratio": 0
+          },
+          "type_distribution": null,
+          "features": {
+            "city": "madrid",
+            "avg_age": 19.91,
+            "avg_ctr": 0.14545,
+            "capacity": 10000,
+            "num_events": 0,
+            "gender_ratio": 0.182,
+            "avg_fill_ratio": 0.00064,
+            "avg_table_rate": 0.14545,
+            "avg_table_revenue": 0,
+            "avg_ticket_revenue": 31994.51,
+            "avg_conversion_rate": 0.00064
+          }
+        },
+        "djs": [
+          {
+            "metrics": {
+              "avg_age": 20.25125,
+              "avg_ctr": 0.2,
+              "num_events": 3,
+              "gender_ratio": 0.25025,
+              "num_org_chats": 0,
+              "avg_fill_ratio": 0.00088,
+              "avg_table_rate": 0.2,
+              "monthly_streams": 0,
+              "native_followers": 0,
+              "social_followers": 0,
+              "avg_table_revenue": 0,
+              "avg_ticket_revenue": 41479.61,
+              "avg_conversion_rate": 0.00088
+            },
+            "language_distribution": {
+              "dutch_ratio": 0.74625,
+              "english_ratio": 0.25375,
+              "spanish_ratio": 0
+            },
+            "genre_dist": {
+              "d&b": 1,
+              "edm": 1,
+              "house": 1,
+              "techno": 1,
+              "reggaeton": 1,
+              "afro house": 1,
+              "deep house": 1
+            }
+          },
+          {
+            "metrics": {
+              "avg_age": 20.25125,
+              "avg_ctr": 0.2,
+              "num_events": 3,
+              "gender_ratio": 0.25025,
+              "num_org_chats": 0,
+              "avg_fill_ratio": 0.00088,
+              "avg_table_rate": 0.2,
+              "monthly_streams": 10000,
+              "native_followers": 10,
+              "social_followers": 349483,
+              "avg_table_revenue": 0,
+              "avg_ticket_revenue": 41479.61,
+              "avg_conversion_rate": 0.00088
+            },
+            "language_distribution": {
+              "dutch_ratio": 0.74625,
+              "english_ratio": 0.25375,
+              "spanish_ratio": 0
+            },
+            "genre_dist": null
+          },
+          {
+            "metrics": {
+              "avg_age": 20.25125,
+              "avg_ctr": 0.2,
+              "num_events": 1,
+              "gender_ratio": 0.25025,
+              "num_org_chats": 0,
+              "avg_fill_ratio": 0.00088,
+              "avg_table_rate": 0.2,
+              "monthly_streams": 384909,
+              "native_followers": 234,
+              "social_followers": 33000,
+              "avg_table_revenue": 0,
+              "avg_ticket_revenue": 41479.61,
+              "avg_conversion_rate": 0.00088
+            },
+            "language_distribution": {
+              "dutch_ratio": 0.74625,
+              "english_ratio": 0.25375,
+              "spanish_ratio": 0
+            },
+            "genre_dist": null
+          },
+          {
+            "metrics": {
+              "avg_age": 20.25125,
+              "avg_ctr": 0.2,
+              "num_events": 2,
+              "gender_ratio": 0.25025,
+              "num_org_chats": 0,
+              "avg_fill_ratio": 0.00088,
+              "avg_table_rate": 0.2,
+              "monthly_streams": 384909,
+              "native_followers": 284,
+              "social_followers": 33390,
+              "avg_table_revenue": 0,
+              "avg_ticket_revenue": 41479.61,
+              "avg_conversion_rate": 0.00088
+            },
+            "language_distribution": {
+              "dutch_ratio": 0.74625,
+              "english_ratio": 0.25375,
+              "spanish_ratio": 0
+            },
+            "genre_dist": null
+          },
+          {
+            "metrics": {
+              "avg_age": 20.25125,
+              "avg_ctr": 0.2,
+              "num_events": 1,
+              "gender_ratio": 0.25025,
+              "num_org_chats": 0,
+              "avg_fill_ratio": 0.00088,
+              "avg_table_rate": 0.2,
+              "monthly_streams": 384909,
+              "native_followers": 2843,
+              "social_followers": 33390,
+              "avg_table_revenue": 0,
+              "avg_ticket_revenue": 41479.61,
+              "avg_conversion_rate": 0.00088
+            },
+            "language_distribution": {
+              "dutch_ratio": 0.74625,
+              "english_ratio": 0.25375,
+              "spanish_ratio": 0
+            },
+            "genre_dist": null
+          }
+        ]
+      },
+      {
+        "event_id": 7,
+        "genre_dist": null,
+        "venue_id": 5,
+        "venue": {
+          "language_distribution": {
+            "dutch_ratio": 0.16666666666666666,
+            "english_ratio": 0,
+            "spanish_ratio": 0.8333333333333334
+          },
+          "type_distribution": null,
+          "features": {
+            "city": "Madrid",
+            "avg_age": 23.166666666666668,
+            "avg_ctr": 0,
+            "capacity": 100,
+            "num_events": 8,
+            "gender_ratio": 0,
+            "avg_fill_ratio": 0.01,
+            "avg_table_rate": 0,
+            "avg_table_revenue": 0,
+            "avg_ticket_revenue": 6700.92,
+            "avg_conversion_rate": 0
+          }
+        },
+        "djs": [
+          {
+            "metrics": {
+              "avg_age": 23.166666666666668,
+              "avg_ctr": 0,
+              "num_events": 5,
+              "gender_ratio": 0,
+              "num_org_chats": 0,
+              "avg_fill_ratio": 0.01,
+              "avg_table_rate": 0,
+              "monthly_streams": 384909,
+              "native_followers": 2843,
+              "social_followers": 33390,
+              "avg_table_revenue": 0,
+              "avg_ticket_revenue": 6700.92,
+              "avg_conversion_rate": 0
+            },
+            "language_distribution": {
+              "dutch_ratio": 0.16666666666666666,
+              "english_ratio": 0,
+              "spanish_ratio": 0.8333333333333334
             },
             "genre_dist": null
           }
