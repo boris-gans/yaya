@@ -19,6 +19,7 @@ import json
 import httpx
 from asyncio import create_task, TimeoutError
 import time
+from background_writes.celery_worker import publish_message
 
 load_dotenv(override=True, dotenv_path='/Users/borisgans/personal/yaya/yaya_dev/.env')
 
@@ -317,11 +318,18 @@ async def essential_write(data: dict):
 @app.post("/background_write/")
 async def background_write(data: dict):
     """
-    Calls the REST API service for background writes.
+    Test endpoint for background message publishing
     """
-    print(f"Background data: {data}")
-    # response = requests.post(WRITE_SERVICE_REST_URL, json={"data": data["data"], "priority": False})
-    # return response.json()
+    # Queue the task in Celery
+    task = publish_message.delay(
+        message="Hello World!",
+        routing_key="test.message"
+    )
+    
+    return {
+        "message": "Task queued successfully",
+        "task_id": task.id
+    }
 
 
 # --------------- Streaming Read Endpoints ----------------
