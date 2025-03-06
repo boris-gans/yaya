@@ -1,4 +1,4 @@
-from fastapi import FastAPI, Request, HTTPException, Depends, Body
+from fastapi import FastAPI, Request, HTTPException, Depends, Body, BackgroundTasks
 from fastapi.responses import StreamingResponse, JSONResponse
 from jose import jwt, JWTError, ExpiredSignatureError
 from datetime import datetime, timedelta, timezone
@@ -17,7 +17,9 @@ import requests
 import base64
 import json
 import httpx
-# switch to pyodbc or asyncodbc for azure SQL
+from asyncio import create_task, TimeoutError
+import time
+import redis
 
 load_dotenv(override=True, dotenv_path='/Users/borisgans/personal/yaya/yaya_dev/.env')
 
@@ -29,7 +31,6 @@ POSTGRE_PW = os.getenv("POSTGRE_PW")
 POSTGRE_HOST = os.getenv("POSTGRE_HOST")
 POSTGRE_WRITE_PORT = os.getenv("POSTGRE_WRITE_PORT")
 # POSTGRE_READ_PORT = os.getenv("POSTGRE_READ_PORT")
-
 POSTGRE_READ_PORT = POSTGRE_WRITE_PORT
 # temp for local db
 
@@ -45,10 +46,10 @@ GRPC_INSC_CHANNEL = os.getenv("GRPC_INSC_CHANNEL")
 
 # ENDPOINTS
 DB_READER_SERVICE_URL = os.getenv("DB_READER_SERVICE_URL")
-# WRITE_SERVICE_REST_URL = "http://localhost:8001/write/"
+RECOMMENDATION_SERVICE_URL = os.getenv("RECOMMENDATION_SERVICE_URL")
+
 
 print(f"Connection details: {POSTGRE_DB, POSTGRE_USER, POSTGRE_PW, POSTGRE_HOST, POSTGRE_WRITE_PORT}")
-
 
 
 user_data = {}
@@ -373,6 +374,43 @@ def protected(token: str):
 
     print(f"Encoded data:\n {user}")
     return {"message": f"Hello, User {user[1]['user_id']}!", "other_data": user[1]}
+
+@app.get("/recommendations/{user_id}")
+async def get_user_recommendations(user_id: int):
+    """Asynchronously fetch and process recommendations."""
+    async with httpx.AsyncClient() as client:
+        try:
+            # Create both tasks immediately
+            user_data_task = create_task(
+                client.get(
+                    f"{DB_READER_SERVICE_URL}/user_recommendation_data/{user_id}",
+                    timeout=30.0
+                )
+            )
+            
+            # Wait for user data
+            user_data_response = await user_data_task
+            if user_data_response.status_code != 200:
+                raise HTTPException(
+                    status_code=user_data_response.status_code,
+                    detail="Failed to fetch user data"
+                )
+
+            # Start recommendation task
+            recommendation_task = create_task(
+                client.post(
+                    f"{RECOMMENDATION_SERVICE_URL}/generate",
+                    json=user_data_response.json(),
+                    timeout=30.0
+                )
+            )
+            
+            # Wait for recommendations
+            recommendation_response = await recommendation_task
+            return JSONResponse(content=recommendation_response.json())
+
+        except httpx.HTTPError as e:
+            raise HTTPException(status_code=500, detail=str(e))
 
 if __name__ == "__main__":
     import uvicorn
