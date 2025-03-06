@@ -397,17 +397,17 @@ async def get_user_recommendations(user_id: int):
                 )
 
             # Start recommendation task
-            recommendation_task = create_task(
-                client.post(
-                    f"{RECOMMENDATION_SERVICE_URL}/generate",
-                    json=user_data_response.json(),
-                    timeout=30.0
-                )
-            )
+            # recommendation_task = create_task(
+            #     client.post(
+            #         f"{RECOMMENDATION_SERVICE_URL}/generate",
+            #         json=user_data_response.json(),
+            #         timeout=30.0
+            #     )
+            # )
             
-            # Wait for recommendations
-            recommendation_response = await recommendation_task
-            return JSONResponse(content=recommendation_response.json())
+            # # Wait for recommendations
+            # recommendation_response = await recommendation_task
+            return JSONResponse(content=user_data_response.json())
 
         except httpx.HTTPError as e:
             raise HTTPException(status_code=500, detail=str(e))
