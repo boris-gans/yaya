@@ -7,7 +7,7 @@ from google.protobuf.timestamp_pb2 import Timestamp
 from contextlib import asynccontextmanager
 from db_writes import write_service_pb2, write_service_pb2_grpc
 from dotenv import load_dotenv
-from background_writes.celery_worker import publish_message
+from background_writes.celery_worker import publish_metric
 from enum import Enum
 from asyncio import create_task, TimeoutError
 import os
@@ -330,16 +330,17 @@ async def background_write(data: dict):
     """
     Endpoint for background message publishing, this will be for non-essential writes such as: num_clicks, num_impressions, etc.
     """
-    # sample json
-    data = {
-        'metric_type': 'click',
-        'event_id': 1
-    }
+# {
+# "data": {
+# "metric_type": "CLICK",
+# "event_id": 7}}
+
+    # print(data.get('data').get('metric_type'))
     if data.get('metric_type') not in [m.value for m in MetricType]:
         raise HTTPException(status_code=400, detail="Invalid metric type")
 
     # Queue the task in Celery
-    task = publish_message.delay(
+    task = publish_metric.delay(
         event_id=data.get("event_id"),
         metric_type=data.get("metric_type")
     )
