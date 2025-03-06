@@ -5,13 +5,18 @@ import json
 import os
 from typing import Dict
 
+REDIS_HOST = os.getenv("REDIS_HOST")
+REDIS_PORT = os.getenv("REDIS_PORT")
+REDIS_PASSWORD = os.getenv("REDIS_PASSWORD")
+
+
 app = FastAPI()
 
 # Redis connection
 redis_client = redis.Redis(
-    host='driven-robin-54477.upstash.io',
-    port=6379,
-    password='AdTNAAIjcDE0NjU0YjNkNjU3MmE0NGE0OTAzZWZhNDc0MzRjMDJhN3AxMA',
+    host=REDIS_HOST,
+    port=REDIS_PORT,
+    password=REDIS_PASSWORD,
     ssl=True,
     decode_responses=True
 )

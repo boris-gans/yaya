@@ -19,7 +19,6 @@ import json
 import httpx
 from asyncio import create_task, TimeoutError
 import time
-import redis
 
 load_dotenv(override=True, dotenv_path='/Users/borisgans/personal/yaya/yaya_dev/.env')
 
