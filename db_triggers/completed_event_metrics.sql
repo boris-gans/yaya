@@ -50,7 +50,8 @@
                 avg_table_revenue = dj_avg.avg_table_revenue,
                 avg_age = dj_avg.avg_avg_age,
                 gender_ratio = dj_avg.avg_gender_ratio,
-                language_distribution = language_dist  -- Update the JSONB field
+                language_distribution = language_dist,  -- Update the JSONB field
+                completed_events_count = completed_event_count + 1
             WHERE dj.id = dj_avg.dj_id;
         END LOOP;
 
@@ -104,7 +105,8 @@
                 avg_table_revenue = venue_avg.avg_table_revenue,
                 avg_age = venue_avg.avg_avg_age,
                 gender_ratio = venue_avg.avg_gender_ratio,
-                language_distribution = language_dist
+                language_distribution = language_dist,
+                completed_events_count = completed_event_count + 1
             WHERE venues.id = venue_avg.venue_id;
         END LOOP;
     END;
