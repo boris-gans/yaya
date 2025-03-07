@@ -26,6 +26,16 @@ GRPC_INSC_PORT = os.getenv("GRPC_INSC_PORT")
 
 GENDER_MAP = {0: "Male", 1: "Female", 2: "Other"}
 SPEND_CLASS_MAP = {0: "A", 1: "B", 2: "C", 3: "D", 4: "E"}
+ROLE_IDS = {"USER": 1, "DJ": 2, "ORGANIZER": 3, "VENUE": 4}
+GENRE_ID_MAP = {
+    0: 4,  # DNB -> genre_id
+    1: 2,  # EDM -> genre_id
+    2: 1,  # HOUSE -> genre_id
+    3: 5,  # TECHNO -> genre_id
+    4: 3,  # REGGAETON -> genre_id
+    5: 6,  # AFRO_HOUSE -> genre_id
+    6: 7   # DEEP_HOUSE -> genre_id
+}
 
 
 pool = SimpleConnectionPool(1, 3,
@@ -75,6 +85,53 @@ def db_query(query: str, *params):
     return result[0] or 1
 
 
+def create_user_with_role(cursor, user_data, username_override=None, role_id=None) -> int:
+    """
+    Creates a user and assigns a role using the provided cursor.
+    Returns the user_id if successful, raises exception if not.
+    """
+    try:
+        # Insert user
+        user_query = """
+        INSERT INTO user_data(
+            username, first_name, last_name, email, location, language, 
+            gender, birthdate, spend_class, pw
+        ) VALUES(%s, %s, %s, %s, %s, %s, %s, %s, %s, %s) 
+        RETURNING id;
+        """
+        
+        username = username_override or user_data.username
+        values = (
+            username,
+            user_data.first_name,
+            user_data.last_name,
+            user_data.email,
+            user_data.location,
+            user_data.language,
+            GENDER_MAP.get(user_data.gender, 'Other'),
+            user_data.birthdate,
+            'NA',
+            user_data.pw
+        )
+        
+        cursor.execute(user_query, values)
+        user_id = cursor.fetchone()[0]
+
+
+        if role_id:
+            status = 'confirmed' if role_id == ROLE_IDS["USER"] else 'pending'
+            role_query = """
+            INSERT INTO user_roles (user_id, role_id, status)
+            VALUES (%s, %s, %s);
+            """
+            cursor.execute(role_query, (user_id, role_id, status))
+            print(f"Created user + role with id and role: {user_id}, {ROLE_IDS[role_id]}\n")
+
+        return user_id
+    except Exception as e:
+        raise e
+
+
 class WriteService(write_service_pb2_grpc.WriteServiceServicer):    
     def CreateEvent(self, request, context):
         print(f"\nReceived data: {request.data}")
@@ -106,141 +163,175 @@ class WriteService(write_service_pb2_grpc.WriteServiceServicer):
     
     def CreateUser(self, request, context):
         print(f"Received data: {request}")
-
+        conn = pool.getconn()
         try:
-            # First insert the user
-            query = """
-            INSERT INTO user_data(
-                username, first_name, last_name, email, location, language, 
-                gender, birthdate, spend_class, pw
-            ) VALUES(%s, %s, %s, %s, %s, %s, %s, %s, %s, %s) RETURNING id;
-            """
-
-            birth_datetime = datetime.fromisoformat(request.data.birthdate)
-            values = (
-                request.data.username,
-                request.data.first_name,
-                request.data.last_name,
-                request.data.email,
-                request.data.location,
-                request.data.language,
-                GENDER_MAP.get(request.data.gender, 'Other'),
-                birth_datetime,
-                'NA',  # when user registers spend class will never be known
-                request.data.pw,
-            )
-
-            user_id = db_query(query, *values)
-            if user_id is None:
-                return write_service_pb2.CreateEntityResponse(
-                    success=False, 
-                    message=f"DB Error: {err_msg}"
+            print("\nStarting transaction...")
+            conn.autocommit = False  # Start transaction
+            
+            with conn.cursor() as cursor:
+                # Create user account with USER role
+                user_id = create_user_with_role(
+                    cursor,
+                    request.data,
+                    role_id=ROLE_IDS["USER"]
                 )
 
-            # If genres are specified, insert them using genre_id
-            if request.data.genres:
-                # Map proto enum values to database genre_ids
-                GENRE_ID_MAP = {
-                    0: 4,  # DNB -> genre_id
-                    1: 2,  # EDM -> genre_id
-                    2: 1,  # HOUSE -> genre_id
-                    3: 5,  # TECHNO -> genre_id
-                    4: 3,  # REGGAETON -> genre_id
-                    5: 6,  # AFRO_HOUSE -> genre_id
-                    6: 7   # DEEP_HOUSE -> genre_id
-                }
-                
-                genre_query = """
-                INSERT INTO user_genres (user_id, genre_id)
-                VALUES (%s, %s) RETURNING user_id;
-                """
-                
-                # Insert each genre_id for the user
-                for genre_enum in request.data.genres:
-                    genre_id = GENRE_ID_MAP.get(genre_enum)
-                    if genre_id:
-                        if db_query(genre_query, user_id, genre_id) is None:
-                            return write_service_pb2.CreateEntityResponse(
-                                success=False,
-                                message=f"DB Error while inserting genres: {err_msg}"
-                            )
+                # Insert user genres if any
+                if request.data.genres:
+                    genre_query = """
+                    INSERT INTO user_genres (user_id, genre_id)
+                    VALUES (%s, %s);
+                    """
+                    for genre_enum in request.data.genres:
+                        genre_id = GENRE_ID_MAP.get(genre_enum)
+                        if genre_id:
+                            cursor.execute(genre_query, (user_id, genre_id))
 
+            conn.commit()
             return write_service_pb2.CreateEntityResponse(
                 success=True, 
                 message="User created successfully!"
             )
         except Exception as e:
+            conn.rollback()
             print(f"Exception during writing: {e}")
             return write_service_pb2.CreateEntityResponse(
                 success=False, 
-                message=f"Unexpected Exception: {e}"
+                message=f"Exception during writing: {e}"
             )
+        finally:
+            conn.autocommit = True
+            pool.putconn(conn)
 
     def CreateDj(self, request, context):
         print(f"Received data: {request.data}")
+        conn = pool.getconn()
         try:
-            # MISSING: initial onboarding genres insert;
-                # FUTURE: background process to get monthly_streams, social_followers, and better genre representation
-                    # DB trigger to auto update metrics column when any of the above get updated
-            query = """
-            INSERT INTO dj (
-                alias, first_name, last_name, bio, location, email, phone
-            ) VALUES (%s, %s, %s, %s, %s, %s, %s) RETURNING id;
-            """
-            values = (
-                request.data.dj_name,
-                request.data.first_name,
-                request.data.last_name,
-                request.data.bio,
-                request.data.location,
-                request.data.email,
-                request.data.phone
-            )
-
-            dj_id = db_query(query, *values)
-            if dj_id is None:
-                return write_service_pb2.CreateEntityResponse(success=False, message=f"DB Error: {err_msg}")
-
-
-            if request.data.HasField("social_data"):
-                print("Processing social data...")
-                social = request.data.social_data
-
-                social_query = """
-                INSERT INTO dj_socials (dj_id, website, soundcloud, spotify, facebook, instagram, snapchat, x) 
-                VALUES (%s, %s, %s, %s, %s, %s, %s, %s) RETURNING dj_id;
-                """
-                social_values = (
-                    dj_id,
-                    social.website or None,
-                    social.soundcloud or None,
-                    social.spotify or None,
-                    social.facebook or None,
-                    social.instagram or None,
-                    social.snapchat or None,
-                    social.x or None
+            print("\nStarting transaction...")
+            conn.autocommit = False  # Start transaction
+            
+            with conn.cursor() as cursor:
+                # Create user account with DJ role
+                user_id = create_user_with_role(
+                    cursor,
+                    request.data,
+                    username_override=request.data.dj_name,
+                    role_id=ROLE_IDS["DJ"]
                 )
 
-                social_insert = db_query(social_query, *social_values)
-                if social_insert is None:
-                    return write_service_pb2.CreateEntityResponse(success=False, message="DB Error with social data")
+                # Create DJ entry with user_id
+                dj_query = """
+                INSERT INTO dj (
+                    user_id, alias, first_name, last_name, bio, location, 
+                    email, phone
+                ) VALUES (%s, %s, %s, %s, %s, %s, %s, %s) 
+                RETURNING id;
+                """
+                
+                dj_values = (
+                    user_id,
+                    request.data.dj_name,
+                    request.data.first_name,
+                    request.data.last_name,
+                    request.data.bio,
+                    request.data.location,
+                    request.data.email,
+                    request.data.phone
+                )
+                
+                cursor.execute(dj_query, dj_values)
+                dj_id = cursor.fetchone()[0]
 
-            return write_service_pb2.CreateEntityResponse(success=True, message="DJ created!")
-        
+                # Insert DJ genres
+                if request.data.genres:
+                    genre_query = """
+                    INSERT INTO dj_genres (dj_id, genre_id)
+                    VALUES (%s, %s);
+                    """
+                    for genre_enum in request.data.genres:
+                        genre_id = GENRE_ID_MAP.get(genre_enum)
+                        if genre_id:
+                            cursor.execute(genre_query, (dj_id, genre_id))
+
+                # Handle social data if present
+                if request.data.HasField("social_data"):
+                    social_query = """
+                    INSERT INTO dj_socials (
+                        dj_id, website, soundcloud, spotify, facebook, 
+                        instagram, snapchat, x
+                    ) VALUES (%s, %s, %s, %s, %s, %s, %s, %s);
+                    """
+                    social_values = (
+                        dj_id,
+                        request.data.social_data.website,
+                        request.data.social_data.soundcloud,
+                        request.data.social_data.spotify,
+                        request.data.social_data.facebook,
+                        request.data.social_data.instagram,
+                        request.data.social_data.snapchat,
+                        request.data.social_data.x
+                    )
+                    cursor.execute(social_query, social_values)
+
+            conn.commit()
+            print("DJ account created successfully!\n")
+            
+            return write_service_pb2.CreateEntityResponse(
+                success=True,
+                message="DJ account created successfully!"
+            )
+
         except Exception as e:
+            conn.rollback()
             print(f"Exception during writing: {e}")
-            return write_service_pb2.CreateEntityResponse(success=False, message=f"Exception during writing: {e}")
+            return write_service_pb2.CreateEntityResponse(
+                success=False,
+                message=f"Error creating DJ account: {str(e)}"
+            )
+        finally:
+            conn.autocommit = True
+            pool.putconn(conn)
 
     def CreateVenue(self, request, context):
         print(f"Received data: {request.data}")
         try:
-            query = """
+            # First create user account
+            user_query = """
+            INSERT INTO user_data(
+                username, first_name, last_name, email, location, language, 
+                gender, birthdate, spend_class, pw
+            ) VALUES(%s, %s, %s, %s, %s, %s, %s, %s, %s, %s) RETURNING id;
+            """
+            
+            user_values = (
+                request.data.email,  # use email as username
+                request.data.first_name,
+                request.data.last_name,
+                request.data.email,
+                request.data.venue_city,  # use venue city as location
+                request.data.language,
+                GENDER_MAP.get(request.data.gender, 'Other'),
+                request.data.birthdate,
+                'NA',
+                request.data.pw
+            )
+
+            user_id = db_query(user_query, *user_values)
+            if user_id is None:
+                return write_service_pb2.CreateEntityResponse(
+                    success=False, 
+                    message=f"DB Error creating user: {err_msg}"
+                )
+
+            # Then create venue entry
+            venue_query = """
             INSERT INTO venues (
-                name, capacity, address, city, state, zip, country, table_count
-            ) VALUES (%s, %s, %s, %s, %s, %s, %s, %s) RETURNING id;
+                user_id, name, capacity, address, city, state, zip, country, table_count
+            ) VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s) RETURNING id;
             """
 
-            values = (
+            venue_values = (
+                user_id,
                 request.data.venue_name,
                 request.data.venue_capacity,
                 request.data.venue_address,
@@ -250,26 +341,79 @@ class WriteService(write_service_pb2_grpc.WriteServiceServicer):
                 request.data.venue_country,
                 request.data.table_count
             )
-            if db_query(query, *values) is None:
-                return write_service_pb2.CreateEntityResponse(success=False, message=f"DB Error: {err_msg}")
 
-            return write_service_pb2.CreateEntityResponse(success=True, message="Venue created!")
+            venue_id = db_query(venue_query, *venue_values)
+            if venue_id is None:
+                return write_service_pb2.CreateEntityResponse(
+                    success=False, 
+                    message=f"DB Error creating venue: {err_msg}"
+                )
+
+            # Insert into user_roles
+            role_query = """
+            INSERT INTO user_roles (user_id, role_id, status)
+            VALUES (%s, %s, %s) RETURNING user_id;
+            """
+            
+            role_values = (user_id, ROLE_IDS["VENUE"], 'pending')
+            
+            if db_query(role_query, *role_values) is None:
+                return write_service_pb2.CreateEntityResponse(
+                    success=False,
+                    message=f"DB Error creating role: {err_msg}"
+                )
+
+            return write_service_pb2.CreateEntityResponse(
+                success=True, 
+                message="Venue account created successfully!"
+            )
         except Exception as e:
             print(f"Exception during writing: {e}")
-            return write_service_pb2.CreateEntityResponse(success=False, message=f"Exception during writing: {e}")
+            return write_service_pb2.CreateEntityResponse(
+                success=False, 
+                message=f"Exception during writing: {e}"
+            )
     
     def CreateOrganizer(self, request, context):
         print(f"Received data: {request.data}")
         try:
-            # FUTURE: make website optional?
-                # Question: do we need to know features about organizers? Yes, for DJ -> event matching
-            query = """
+            # First create user account
+            user_query = """
+            INSERT INTO user_data(
+                username, first_name, last_name, email, location, language, 
+                gender, birthdate, spend_class, pw
+            ) VALUES(%s, %s, %s, %s, %s, %s, %s, %s, %s, %s) RETURNING id;
+            """
+            
+            user_values = (
+                request.data.email,  # use email as username
+                request.data.first_name,
+                request.data.last_name,
+                request.data.email,
+                request.data.country,  # use country as location
+                request.data.language,
+                GENDER_MAP.get(request.data.gender, 'Other'),
+                request.data.birthdate,
+                'NA',
+                request.data.pw
+            )
+
+            user_id = db_query(user_query, *user_values)
+            if user_id is None:
+                return write_service_pb2.CreateEntityResponse(
+                    success=False, 
+                    message=f"DB Error creating user: {err_msg}"
+                )
+
+            # Then create organizer entry
+            org_query = """
             INSERT INTO organizer (
-                name, first_name, last_name, email, phone, country, website
-            ) VALUES (%s, %s, %s, %s, %s, %s, %s) RETURNING id;
+                user_id, name, first_name, last_name, email, phone, country, website
+            ) VALUES (%s, %s, %s, %s, %s, %s, %s, %s) RETURNING id;
             """
 
-            values = (
+            org_values = (
+                user_id,
                 request.data.org_name,
                 request.data.first_name,
                 request.data.last_name,
@@ -278,13 +422,38 @@ class WriteService(write_service_pb2_grpc.WriteServiceServicer):
                 request.data.country,
                 request.data.website
             )
-            if db_query(query, *values) is None:
-                return write_service_pb2.CreateEntityResponse(success=False, message=f"DB Error: {err_msg}")
 
-            return write_service_pb2.CreateEntityResponse(success=True, message="Organizer created!")
+            org_id = db_query(org_query, *org_values)
+            if org_id is None:
+                return write_service_pb2.CreateEntityResponse(
+                    success=False, 
+                    message=f"DB Error creating organizer: {err_msg}"
+                )
+
+            # Insert into user_roles
+            role_query = """
+            INSERT INTO user_roles (user_id, role_id, status)
+            VALUES (%s, %s, %s) RETURNING user_id;
+            """
+            
+            role_values = (user_id, ROLE_IDS["ORGANIZER"], 'pending')
+            
+            if db_query(role_query, *role_values) is None:
+                return write_service_pb2.CreateEntityResponse(
+                    success=False,
+                    message=f"DB Error creating role: {err_msg}"
+                )
+
+            return write_service_pb2.CreateEntityResponse(
+                success=True, 
+                message="Organizer account created successfully!"
+            )
         except Exception as e:
             print(f"Exception during writing: {e}")
-            return write_service_pb2.CreateEntityResponse(success=False, message=f"Exception during writing: {e}")
+            return write_service_pb2.CreateEntityResponse(
+                success=False, 
+                message=f"Exception during writing: {e}"
+            )
         
     def PublishEvent(self, request, context):
         print(f"Received data: {request.data}")
