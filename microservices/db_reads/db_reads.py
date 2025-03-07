@@ -124,23 +124,15 @@ async def get_events():
                 FROM event_genres eg
                 JOIN genres g ON eg.genre_id = g.id
                 WHERE eg.event_id = e.id
-            ) as genres
+            ) as genres,
+            pe.event_poster,
+            pe.bio
         FROM event_data e
         JOIN venues v ON e.venue_id = v.id
         JOIN organizer o ON e.organizer_id = o.id
+        LEFT JOIN published_events pe ON e.id = pe.event_id
     )
-    SELECT 
-        e.*,
-        NULL as event_poster,
-        NULL as bio
-    FROM base_events e
-    UNION ALL
-    SELECT 
-        e.*,
-        pe.event_poster,
-        pe.bio
-    FROM base_events e
-    JOIN published_events pe ON e.id = pe.event_id;
+    SELECT * FROM base_events;
     """
     
     return StreamingResponse(stream_query(query), media_type="application/json")
