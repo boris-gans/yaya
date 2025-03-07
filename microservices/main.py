@@ -358,7 +358,18 @@ async def proxy_get_events():
     async with httpx.AsyncClient() as client:
         try:
             response = await client.get(f"{DB_READER_SERVICE_URL}/events", timeout=30.0)
-            return StreamingResponse(response.aiter_bytes(), media_type="application/json")
+            
+            async def parse_stream():
+                # Process the stream line by line
+                async for line in response.aiter_lines():
+                    if line.strip():  # Skip empty lines
+                        print(f"Line: {line}\n")
+                        yield line + "\n"
+
+            return StreamingResponse(
+                parse_stream(),
+                media_type="application/json"
+            )
         except httpx.HTTPError as e:
             raise HTTPException(status_code=500, detail=str(e))
 
@@ -368,7 +379,18 @@ async def proxy_get_djs():
     async with httpx.AsyncClient() as client:
         try:
             response = await client.get(f"{DB_READER_SERVICE_URL}/djs", timeout=30.0)
-            return StreamingResponse(response.aiter_bytes(), media_type="application/json")
+            
+            async def parse_stream():
+                # Process the stream line by line
+                async for line in response.aiter_lines():
+                    if line.strip():  # Skip empty lines
+                        # print(f"Line: {line}\n")
+                        yield line + "\n"
+
+            return StreamingResponse(
+                parse_stream(),
+                media_type="application/json"
+            )
         except httpx.HTTPError as e:
             raise HTTPException(status_code=500, detail=str(e))
 

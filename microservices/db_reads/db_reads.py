@@ -2,12 +2,16 @@ from fastapi import FastAPI, Query, Depends, HTTPException
 from fastapi.responses import StreamingResponse, JSONResponse
 from dotenv import load_dotenv
 from contextlib import asynccontextmanager
+from datetime import datetime
+from decimal import Decimal
+from typing import AsyncGenerator, Dict, Optional
+
 import asyncpg
 import asyncio
 import json
 import os
-from typing import AsyncGenerator, Dict, Optional
 import redis
+
 
 load_dotenv()
 
@@ -22,6 +26,14 @@ POSTGRE_WRITE_PORT = os.getenv("POSTGRE_WRITE_PORT")
 REDIS_HOST = os.getenv("REDIS_HOST", "driven-robin-54477.upstash.io")
 REDIS_PORT = int(os.getenv("REDIS_PORT", "6379"))
 REDIS_PASSWORD = os.getenv("REDIS_PASSWORD")
+
+class CustomJSONEncoder(json.JSONEncoder):
+    def default(self, obj):
+        if isinstance(obj, datetime):
+            return obj.isoformat()
+        if isinstance(obj, Decimal):
+            return float(obj)
+        return super().default(obj)
 
 class Database:
     def __init__(self):
@@ -45,13 +57,11 @@ class Database:
         if self.pool:
             await self.pool.close()
 
-    async def get_connection(self) -> AsyncGenerator[asyncpg.Pool, None]:
+    async def get_connection(self):
+        """Get a connection from the pool."""
         if not self.pool:
             await self.connect()
-        try:
-            yield self.pool
-        finally:
-            pass
+        return self.pool
 
 
 # APP DEFINITION
@@ -83,30 +93,79 @@ db = Database()
 
 async def stream_query(query: str, *params):
     """Helper function to stream query results as JSON."""
-    async with db.get_connection() as pool:
-        async with pool.acquire() as conn:
-            async with conn.transaction():
-                async for record in conn.cursor(query, *params):
-                    yield json.dumps(dict(record)) + "\n"
+    pool = await db.get_connection()
+    async with pool.acquire() as conn:
+        async with conn.transaction():
+            async for record in conn.cursor(query, *params):
+                yield json.dumps(
+                    dict(record), 
+                    cls=CustomJSONEncoder
+                ) + "\n"
 
 @app.get("/events", response_class=StreamingResponse)
-async def get_events(pool=Depends(db.get_connection)):
-    """Stream all events from event_data & published_events."""
+async def get_events():
+    """Stream all events with their display-relevant data and genres."""
 
     query = """
-    SELECT * FROM event_data
+    WITH base_events AS (
+        SELECT 
+            e.id,
+            e.event_name,
+            e.date,
+            v.name as venue_name,
+            v.address as venue_address,
+            v.city as venue_city,
+            v.state as venue_state,
+            v.zip as venue_zip,
+            v.country as venue_country,
+            o.name as organizer_name,
+            (
+                SELECT array_agg(g.name)
+                FROM event_genres eg
+                JOIN genres g ON eg.genre_id = g.id
+                WHERE eg.event_id = e.id
+            ) as genres
+        FROM event_data e
+        JOIN venues v ON e.venue_id = v.id
+        JOIN organizer o ON e.organizer_id = o.id
+    )
+    SELECT 
+        e.*,
+        NULL as event_poster,
+        NULL as bio
+    FROM base_events e
     UNION ALL
-    SELECT * FROM published_events;
+    SELECT 
+        e.*,
+        pe.event_poster,
+        pe.bio
+    FROM base_events e
+    JOIN published_events pe ON e.id = pe.event_id;
     """
+    
     return StreamingResponse(stream_query(query), media_type="application/json")
 
 @app.get("/djs", response_class=StreamingResponse)
 async def get_djs():
     """Stream all DJs with their socials."""
     query = """
-    SELECT dj.*, dj_socials.*
-    FROM dj
-    LEFT JOIN dj_socials ON dj.id = dj_socials.dj_id;
+    SELECT 
+        d.id,
+        d.alias,
+        d.first_name,
+        d.last_name,
+        d.bio,
+        d.location,
+        d.interested_count,
+        ds.website,
+        ds.soundcloud,
+        ds.spotify,
+        ds.facebook,
+        ds.instagram,
+        ds.snapchat,
+        ds.x
+    FROM dj d
+    LEFT JOIN dj_socials ds ON d.id = ds.dj_id;
     """
     return StreamingResponse(stream_query(query), media_type="application/json")
 
@@ -122,17 +181,14 @@ async def get_event_details(event_id: int):
     LEFT JOIN organizer o ON pe.organizer_id = o.id
     WHERE pe.id = $1
     """
-    async with db.get_connection() as pool:
-        result = await pool.fetchrow(query, event_id)
-        if not result:
-            return JSONResponse({"error": "Event not found"}, status_code=404)
-        return dict(result)
+    pool = await db.get_connection()
+    result = await pool.fetchrow(query, event_id)
+    if not result:
+        return JSONResponse({"error": "Event not found"}, status_code=404)
+    return dict(result)
     
 @app.get("/user_recommendation_data/{user_id}")
-async def get_user_recommendation_data(
-    user_id: int,
-    pool=Depends(db.get_connection)
-) -> Dict:
+async def get_user_recommendation_data(user_id: int) -> Dict:
     """Fetch and aggregate user event history data for recommendations."""
     
     # Check Redis cache first
@@ -144,6 +200,7 @@ async def get_user_recommendation_data(
     
     print(f"Cache miss for user {user_id}, querying database...")
     
+    pool = await db.get_connection()
     async with pool.acquire() as conn:
         # First get user's core data and genres
         user_query = """
