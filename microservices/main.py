@@ -407,22 +407,7 @@ async def proxy_get_event_details(event_id: int):
             raise HTTPException(status_code=500, detail=str(e))
 
 
-# --------------- B.S. Endpoints ----------------
-@app.get("/new_key")
-def refresh_key_manual():
-    """faking JWT key refresh; should be on timer"""
-    rotate_keys()
-
-@app.get("/protected")
-def protected(token: str):
-    """temporary endpoint to see whats in the JWT"""
-    user = decode_jwt(token)
-    if not user[0]:
-        raise HTTPException(status_code=401, detail=user[1])
-
-    print(f"Encoded data:\n {user}")
-    return {"message": f"Hello, User {user[1]['user_id']}!", "other_data": user[1]}
-
+# ----------- Recommendation Endpoints ---------------
 @app.get("/recommendations/{user_id}")
 async def get_user_recommendations(user_id: int):
     """Asynchronously fetch and process recommendations."""
@@ -459,6 +444,23 @@ async def get_user_recommendations(user_id: int):
 
         except httpx.HTTPError as e:
             raise HTTPException(status_code=500, detail=str(e))
+
+# --------------- B.S. Endpoints ----------------
+@app.get("/new_key")
+def refresh_key_manual():
+    """faking JWT key refresh; should be on timer"""
+    rotate_keys()
+
+@app.get("/protected")
+def protected(token: str):
+    """temporary endpoint to see whats in the JWT"""
+    user = decode_jwt(token)
+    if not user[0]:
+        raise HTTPException(status_code=401, detail=user[1])
+
+    print(f"Encoded data:\n {user}")
+    return {"message": f"Hello, User {user[1]['user_id']}!", "other_data": user[1]}
+
 
 if __name__ == "__main__":
     import uvicorn
