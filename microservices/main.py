@@ -1,4 +1,5 @@
 from fastapi import FastAPI, Request, HTTPException, Depends, Body, BackgroundTasks
+from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import StreamingResponse, JSONResponse
 from jose import jwt, JWTError, ExpiredSignatureError
 from datetime import datetime, timedelta, timezone
@@ -94,7 +95,13 @@ async def lifespan(app: FastAPI):
     print("🛑 Database pool closed")
 
 app = FastAPI(lifespan=lifespan)
-
+app.add_middleware(
+    CORSMiddleware,
+    allow_origins=["http://localhost:3000"],  # Frontend origin
+    allow_credentials=True,
+    allow_methods=["*"],  # Allow all methods (GET, POST, etc.)
+    allow_headers=["*"],  # Allow all headers
+)
 
 # --------------- Write DB Operations - GRPC channels ----------------
 def handle_event(data):
