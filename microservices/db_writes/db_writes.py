@@ -27,14 +27,13 @@ GRPC_INSC_PORT = os.getenv("GRPC_INSC_PORT")
 GENDER_MAP = {0: "Male", 1: "Female", 2: "Other"}
 SPEND_CLASS_MAP = {0: "A", 1: "B", 2: "C", 3: "D", 4: "E"}
 ROLE_IDS = {"USER": 1, "DJ": 2, "ORGANIZER": 3, "VENUE": 4}
-GENRE_ID_MAP = {
-    0: 4,  # DNB -> genre_id
-    1: 2,  # EDM -> genre_id
-    2: 1,  # HOUSE -> genre_id
-    3: 5,  # TECHNO -> genre_id
-    4: 3,  # REGGAETON -> genre_id
-    5: 6,  # AFRO_HOUSE -> genre_id
-    6: 7   # DEEP_HOUSE -> genre_id
+ROLE_NAMES = {v: k for k, v in ROLE_IDS.items()}
+GENRE_ID_MAP = {0: 4, 1: 2, 2: 1, 3: 5, 4: 3, 5: 6, 6: 7}
+VENUE_TYPE_MAP = {
+    "nightclub": 1,
+    "warehouse": 2,
+    "festival": 3,
+    "rooftop": 4
 }
 
 
@@ -85,7 +84,7 @@ def db_query(query: str, *params):
     return result[0] or 1
 
 
-def create_user_with_role(cursor, user_data, username_override=None, role_id=None) -> int:
+def create_user_with_role(cursor, user_data, username_override=None, location_override=None, role_id=None) -> int:
     """
     Creates a user and assigns a role using the provided cursor.
     Returns the user_id if successful, raises exception if not.
@@ -101,12 +100,13 @@ def create_user_with_role(cursor, user_data, username_override=None, role_id=Non
         """
         
         username = username_override or user_data.username
+        location = location_override or user_data.location
         values = (
             username,
             user_data.first_name,
             user_data.last_name,
             user_data.email,
-            user_data.location,
+            location,
             user_data.language,
             GENDER_MAP.get(user_data.gender, 'Other'),
             user_data.birthdate,
@@ -125,7 +125,7 @@ def create_user_with_role(cursor, user_data, username_override=None, role_id=Non
             VALUES (%s, %s, %s);
             """
             cursor.execute(role_query, (user_id, role_id, status))
-            print(f"Created user + role with id and role: {user_id}, {ROLE_IDS[role_id]}\n")
+            print(f"Created user + role with id and role: {user_id}, {ROLE_NAMES[role_id]}\n")
 
         return user_id
     except Exception as e:
@@ -188,6 +188,8 @@ class WriteService(write_service_pb2_grpc.WriteServiceServicer):
                             cursor.execute(genre_query, (user_id, genre_id))
 
             conn.commit()
+            print("User created successfully!\n")
+
             return write_service_pb2.CreateEntityResponse(
                 success=True, 
                 message="User created successfully!"
@@ -294,166 +296,131 @@ class WriteService(write_service_pb2_grpc.WriteServiceServicer):
 
     def CreateVenue(self, request, context):
         print(f"Received data: {request.data}")
+        conn = pool.getconn()
         try:
-            # First create user account
-            user_query = """
-            INSERT INTO user_data(
-                username, first_name, last_name, email, location, language, 
-                gender, birthdate, spend_class, pw
-            ) VALUES(%s, %s, %s, %s, %s, %s, %s, %s, %s, %s) RETURNING id;
-            """
+            print("\nStarting transaction...")
+            conn.autocommit = False  # Start transaction
             
-            user_values = (
-                request.data.email,  # use email as username
-                request.data.first_name,
-                request.data.last_name,
-                request.data.email,
-                request.data.venue_city,  # use venue city as location
-                request.data.language,
-                GENDER_MAP.get(request.data.gender, 'Other'),
-                request.data.birthdate,
-                'NA',
-                request.data.pw
-            )
-
-            user_id = db_query(user_query, *user_values)
-            if user_id is None:
-                return write_service_pb2.CreateEntityResponse(
-                    success=False, 
-                    message=f"DB Error creating user: {err_msg}"
+            with conn.cursor() as cursor:
+                # Create user account with VENUE role
+                user_id = create_user_with_role(
+                    cursor,
+                    request.data,
+                    username_override=request.data.venue_name,
+                    location_override=request.data.venue_city,
+                    role_id=ROLE_IDS["VENUE"]
                 )
 
-            # Then create venue entry
-            venue_query = """
-            INSERT INTO venues (
-                user_id, name, capacity, address, city, state, zip, country, table_count
-            ) VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s) RETURNING id;
-            """
+                # Create venue entry
+                venue_query = """
+                INSERT INTO venues (
+                    user_id, name, capacity, address, city, state, zip, country, table_count
+                ) VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s) 
+                RETURNING id;
+                """
 
-            venue_values = (
-                user_id,
-                request.data.venue_name,
-                request.data.venue_capacity,
-                request.data.venue_address,
-                request.data.venue_city,
-                request.data.venue_state,
-                request.data.venue_zip,
-                request.data.venue_country,
-                request.data.table_count
-            )
-
-            venue_id = db_query(venue_query, *venue_values)
-            if venue_id is None:
-                return write_service_pb2.CreateEntityResponse(
-                    success=False, 
-                    message=f"DB Error creating venue: {err_msg}"
+                venue_values = (
+                    user_id,
+                    request.data.venue_name,
+                    request.data.venue_capacity,
+                    request.data.venue_address,
+                    request.data.venue_city,
+                    request.data.venue_state,
+                    request.data.venue_zip,
+                    request.data.venue_country,
+                    request.data.table_count
                 )
+                
+                cursor.execute(venue_query, venue_values)
+                venue_id = cursor.fetchone()[0]
 
-            # Insert into user_roles
-            role_query = """
-            INSERT INTO user_roles (user_id, role_id, status)
-            VALUES (%s, %s, %s) RETURNING user_id;
-            """
-            
-            role_values = (user_id, ROLE_IDS["VENUE"], 'pending')
-            
-            if db_query(role_query, *role_values) is None:
-                return write_service_pb2.CreateEntityResponse(
-                    success=False,
-                    message=f"DB Error creating role: {err_msg}"
-                )
+                # Insert venue types
+                if request.data.venue_types:
+                    type_query = """
+                    INSERT INTO venue_types (venue_id, type_id)
+                    VALUES (%s, %s);
+                    """
+                    for type_name in request.data.venue_types:
+                        type_id = VENUE_TYPE_MAP.get(type_name.lower())
+                        if type_id:
+                            cursor.execute(type_query, (venue_id, type_id))
+
+            conn.commit()
+            print("Venue account created successfully!\n")
 
             return write_service_pb2.CreateEntityResponse(
-                success=True, 
+                success=True,
                 message="Venue account created successfully!"
             )
+
         except Exception as e:
+            conn.rollback()
             print(f"Exception during writing: {e}")
             return write_service_pb2.CreateEntityResponse(
-                success=False, 
-                message=f"Exception during writing: {e}"
+                success=False,
+                message=f"Error creating venue account: {str(e)}"
             )
-    
+        finally:
+            conn.autocommit = True
+            pool.putconn(conn)
+
     def CreateOrganizer(self, request, context):
         print(f"Received data: {request.data}")
+        conn = pool.getconn()
         try:
-            # First create user account
-            user_query = """
-            INSERT INTO user_data(
-                username, first_name, last_name, email, location, language, 
-                gender, birthdate, spend_class, pw
-            ) VALUES(%s, %s, %s, %s, %s, %s, %s, %s, %s, %s) RETURNING id;
-            """
+            print("\nStarting transaction...")
+            conn.autocommit = False  # Start transaction
             
-            user_values = (
-                request.data.email,  # use email as username
-                request.data.first_name,
-                request.data.last_name,
-                request.data.email,
-                request.data.country,  # use country as location
-                request.data.language,
-                GENDER_MAP.get(request.data.gender, 'Other'),
-                request.data.birthdate,
-                'NA',
-                request.data.pw
-            )
-
-            user_id = db_query(user_query, *user_values)
-            if user_id is None:
-                return write_service_pb2.CreateEntityResponse(
-                    success=False, 
-                    message=f"DB Error creating user: {err_msg}"
+            with conn.cursor() as cursor:
+                # Create user account with ORGANIZER role
+                user_id = create_user_with_role(
+                    cursor,
+                    request.data,
+                    username_override=request.data.org_name,
+                    location_override=request.data.country,
+                    role_id=ROLE_IDS["ORGANIZER"]
                 )
 
-            # Then create organizer entry
-            org_query = """
-            INSERT INTO organizer (
-                user_id, name, first_name, last_name, email, phone, country, website
-            ) VALUES (%s, %s, %s, %s, %s, %s, %s, %s) RETURNING id;
-            """
+                # Create organizer entry
+                org_query = """
+                INSERT INTO organizer (
+                    user_id, name, first_name, last_name, email, phone, country, website
+                ) VALUES (%s, %s, %s, %s, %s, %s, %s, %s) 
+                RETURNING id;
+                """
 
-            org_values = (
-                user_id,
-                request.data.org_name,
-                request.data.first_name,
-                request.data.last_name,
-                request.data.email,
-                request.data.phone,
-                request.data.country,
-                request.data.website
-            )
-
-            org_id = db_query(org_query, *org_values)
-            if org_id is None:
-                return write_service_pb2.CreateEntityResponse(
-                    success=False, 
-                    message=f"DB Error creating organizer: {err_msg}"
+                org_values = (
+                    user_id,
+                    request.data.org_name,
+                    request.data.first_name,
+                    request.data.last_name,
+                    request.data.email,
+                    request.data.phone,
+                    request.data.country,
+                    request.data.website
                 )
+                
+                cursor.execute(org_query, org_values)
+                org_id = cursor.fetchone()[0]
 
-            # Insert into user_roles
-            role_query = """
-            INSERT INTO user_roles (user_id, role_id, status)
-            VALUES (%s, %s, %s) RETURNING user_id;
-            """
+            conn.commit()
+            print("Organizer account created successfully!\n")
             
-            role_values = (user_id, ROLE_IDS["ORGANIZER"], 'pending')
-            
-            if db_query(role_query, *role_values) is None:
-                return write_service_pb2.CreateEntityResponse(
-                    success=False,
-                    message=f"DB Error creating role: {err_msg}"
-                )
-
             return write_service_pb2.CreateEntityResponse(
-                success=True, 
+                success=True,
                 message="Organizer account created successfully!"
             )
+
         except Exception as e:
+            conn.rollback()
             print(f"Exception during writing: {e}")
             return write_service_pb2.CreateEntityResponse(
-                success=False, 
-                message=f"Exception during writing: {e}"
+                success=False,
+                message=f"Error creating organizer account: {str(e)}"
             )
+        finally:
+            conn.autocommit = True
+            pool.putconn(conn)
         
     def PublishEvent(self, request, context):
         print(f"Received data: {request.data}")

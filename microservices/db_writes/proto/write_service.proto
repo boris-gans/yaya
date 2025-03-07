@@ -103,7 +103,14 @@ message VenueData {
   string venue_zip = 6;
   string venue_country = 7;
   int32 table_count = 8;
-  UserData user_data = 9;
+  string first_name = 9;
+  string last_name = 10;
+  string email = 11;
+  string language = 12;
+  Gender gender = 13;
+  string birthdate = 14;
+  string pw = 15;
+  repeated string venue_types = 16;
 }
 
 message CreateVenueRequest {
@@ -115,7 +122,13 @@ message OrganizerData {
   string phone = 5;
   string country = 6;
   string website = 7;
-  UserData user_data = 8;
+  string first_name = 8;
+  string last_name = 9;
+  string email = 10;
+  string language = 11;
+  Gender gender = 12;
+  string birthdate = 13;
+  string pw = 14;
 }
 
 message CreateOrganizerRequest {
