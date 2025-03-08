@@ -62,12 +62,18 @@ sensitive_data = {}
 body_data = {}
 db_pool = None
 
-
 class MetricType(Enum):
     CLICK = "click"
     IMPRESSION = "impression"
     SHARE = "share"
     SAVE = "save"
+
+ROLE_IDS = {
+    "USER": 1,
+    "DJ": 2,
+    "ORGANIZER": 3,
+    "VENUE": 4
+}
 
 
 # gRPC Channel to the write microservice
@@ -479,6 +485,58 @@ def protected(token: str):
 
     print(f"Encoded data:\n {user}")
     return {"message": f"Hello, User {user[1]['user_id']}!", "other_data": user[1]}
+
+@app.get("/profile/{user_id}")
+async def get_user_profile(
+    user_id: int
+    # current_user: dict = Depends(get_current_user)
+):
+    """Proxy request for getting user profile data."""
+    async with httpx.AsyncClient() as client:
+        try:
+            response = await client.get(
+                f"{DB_READER_SERVICE_URL}/profile/{user_id}",
+                timeout=10.0
+            )
+            
+            if response.status_code == 404:
+                raise HTTPException(status_code=404, detail="User not found")
+            
+            profile_data = response.json()
+            print(f"Profile data: {profile_data}")
+
+            # Add role-specific data based on role_id
+            if "role_id" in profile_data:
+                role_id = profile_data["role_id"]
+                
+                if role_id == ROLE_IDS["DJ"]:
+                    dj_response = await client.get(
+                        f"{DB_READER_SERVICE_URL}/dj/{user_id}",
+                        timeout=10.0
+                    )
+                    if dj_response.status_code == 200:
+                        profile_data["dj_data"] = dj_response.json()
+                
+                elif role_id == ROLE_IDS["VENUE"]:
+                    venue_response = await client.get(
+                        f"{DB_READER_SERVICE_URL}/venue/{user_id}",
+                        timeout=10.0
+                    )
+                    if venue_response.status_code == 200:
+                        profile_data["venue_data"] = venue_response.json()
+                
+                elif role_id == ROLE_IDS["ORGANIZER"]:
+                    org_response = await client.get(
+                        f"{DB_READER_SERVICE_URL}/organizer/{user_id}",
+                        timeout=10.0
+                    )
+                    if org_response.status_code == 200:
+                        profile_data["organizer_data"] = org_response.json()
+
+            return JSONResponse(content=profile_data)
+            
+        except httpx.HTTPError as e:
+            raise HTTPException(status_code=500, detail=str(e))
 
 
 

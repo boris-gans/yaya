@@ -303,6 +303,46 @@ async def get_user_recommendation_data(user_id: int) -> Dict:
         
     return result
 
+@app.get("/profile/{user_id}")
+async def get_profile_data(user_id: int):
+    """Fetch user profile data including roles and role-specific information."""
+    
+    pool = await db.get_connection()
+    async with pool.acquire() as conn:
+        # First get user's basic data
+        user_query = """
+        SELECT 
+            username, first_name, last_name, email, 
+            location, language, gender, birthdate, 
+            registered_at,
+            (
+                SELECT array_agg(g.name)
+                FROM user_genres ug
+                JOIN genres g ON ug.genre_id = g.id
+                WHERE ug.user_id = user_data.id
+            ) as genres
+        FROM user_data 
+        WHERE id = $1;
+        """
+        user_data = await conn.fetchrow(user_query, user_id)
+        if not user_data:
+            return JSONResponse({"error": "User not found"}, status_code=404)
+
+        # Get user's role
+        role_query = """
+        SELECT role_id, status
+        FROM user_roles
+        WHERE user_id = $1;
+        """
+        role_data = await conn.fetchrow(role_query, user_id)
+        
+        result = dict(user_data)
+        if role_data:
+            result["role_id"] = role_data["role_id"]
+            result["status"] = role_data["status"]
+        
+        return result
+
 if __name__ == "__main__":
     import uvicorn
     uvicorn.run("db_reads:app", host="0.0.0.0", port=8001, reload=True)
