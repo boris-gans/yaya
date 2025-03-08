@@ -186,13 +186,13 @@ async def get_current_user(credentials: HTTPAuthorizationCredentials = Security(
         token = credentials.credentials
         success, payload = decode_jwt(token)
         if not success:
-            raise HTTPException(status_code=401, detail=payload)  # payload contains error message
+            raise HTTPException(status_code=401, detail=payload)
         
-        # Get username from the base64 decoded data
         decoded_data = json.loads(base64.b64decode(payload["data"]).decode("utf-8"))
         if not decoded_data.get('username'):
             raise HTTPException(status_code=401, detail="Invalid authentication token")
         
+        # role_id will now be available in the decoded data
         return decoded_data
     except Exception as e:
         raise HTTPException(status_code=401, detail=str(e))
@@ -206,7 +206,8 @@ def rotate_keys():
 def create_jwt(data: dict, expires_delta: Optional[timedelta] = None):
     to_encode = {
         'id': data['id'],
-        'username': data['username']  # Add username explicitly
+        'username': data['username'],
+        'role_id': data.get('role_id')  # Add role_id to JWT
     }
     bytes = base64.b64encode(json.dumps(data).encode('utf-8')).decode('utf-8')
 
@@ -281,9 +282,18 @@ async def get_current_user_postgres(username_or_email: str, pw: str):
         async with db_pool.acquire() as conn:
             row = await conn.fetchrow(
                 """
-                SELECT id, username, first_name, last_name, email, location, language 
-                FROM user_data 
-                WHERE (username = $1 OR email = $1) AND pw = $2
+                SELECT 
+                    ud.id, 
+                    ud.username, 
+                    ud.first_name, 
+                    ud.last_name, 
+                    ud.email, 
+                    ud.location, 
+                    ud.language,
+                    ur.role_id
+                FROM user_data ud
+                LEFT JOIN user_roles ur ON ud.id = ur.user_id
+                WHERE (ud.username = $1 OR ud.email = $1) AND ud.pw = $2
                 """,
                 username_or_email, pw
             )
