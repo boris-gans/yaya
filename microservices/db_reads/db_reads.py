@@ -139,23 +139,29 @@ async def get_events():
 
 @app.get("/djs", response_class=StreamingResponse)
 async def get_djs():
-    """Stream all DJs with their socials."""
+    """Stream all DJs with their socials and genres."""
     query = """
     SELECT 
-        d.id,
         d.alias,
         d.first_name,
         d.last_name,
         d.bio,
         d.location,
         d.interested_count,
+        d.created_at,
         ds.website,
         ds.soundcloud,
         ds.spotify,
         ds.facebook,
         ds.instagram,
         ds.snapchat,
-        ds.x
+        ds.x,
+        (
+            SELECT array_agg(g.name)
+            FROM dj_genres dg
+            JOIN genres g ON dg.genre_id = g.id
+            WHERE dg.dj_id = d.id
+        ) as genres
     FROM dj d
     LEFT JOIN dj_socials ds ON d.id = ds.dj_id;
     """
@@ -303,6 +309,8 @@ async def get_user_recommendation_data(user_id: int) -> Dict:
         
     return result
 
+
+# --------------- Private User-Specific Endpoints ----------------
 @app.get("/profile/{user_id}")
 async def get_profile_data(user_id: int):
     """Fetch user profile data including roles and role-specific information."""
@@ -342,6 +350,101 @@ async def get_profile_data(user_id: int):
             result["status"] = role_data["status"]
         
         return result
+
+@app.get("/dj/{user_id}")
+async def get_dj_profile(user_id: int):
+    """Fetch DJ-specific profile data."""
+    pool = await db.get_connection()
+    async with pool.acquire() as conn:
+        query = """
+        SELECT 
+            bio,
+            interested_count,
+            notifications,
+            phone,
+            completed_events_count,
+            genre_dist,
+            language_distribution,
+            metrics
+        FROM dj 
+        WHERE user_id = $1;
+        """
+        result = await conn.fetchrow(query, user_id)
+        if not result:
+            return JSONResponse({"error": "DJ not found"}, status_code=404)
+        
+        # Convert to dict and parse JSONB fields
+        dj_data = dict(result)
+        try:
+            if dj_data.get('genre_dist'):
+                dj_data['genre_dist'] = json.loads(dj_data['genre_dist'])
+            if dj_data.get('language_distribution'):
+                dj_data['language_distribution'] = json.loads(dj_data['language_distribution'])
+            if dj_data.get('metrics'):
+                dj_data['metrics'] = json.loads(dj_data['metrics'])
+        except json.JSONDecodeError as e:
+            print(f"Error parsing JSONB fields for DJ {user_id}: {e}")
+        
+        print(f"DJ profile data for user {user_id}: {dj_data}")
+        return dj_data
+
+@app.get("/venue/{user_id}")
+async def get_venue_profile(user_id: int):
+    """Fetch venue-specific profile data."""
+    pool = await db.get_connection()
+    async with pool.acquire() as conn:
+        query = """
+        SELECT 
+            capacity,
+            address,
+            city,
+            state,
+            zip,
+            country,
+            table_count,
+            completed_events_count,
+            type_distribution,
+            language_distribution,
+            features
+        FROM venues 
+        WHERE user_id = $1;
+        """
+        result = await conn.fetchrow(query, user_id)
+        if not result:
+            return JSONResponse({"error": "Venue not found"}, status_code=404)
+        
+        # Convert to dict and parse JSONB fields
+        venue_data = dict(result)
+        try:
+            if venue_data.get('type_distribution'):
+                venue_data['type_distribution'] = json.loads(venue_data['type_distribution'])
+            if venue_data.get('language_distribution'):
+                venue_data['language_distribution'] = json.loads(venue_data['language_distribution'])
+            if venue_data.get('features'):
+                venue_data['features'] = json.loads(venue_data['features'])
+        except json.JSONDecodeError as e:
+            print(f"Error parsing JSONB fields for venue {user_id}: {e}")
+        
+        print(f"Venue profile data for user {user_id}: {venue_data}")
+        return venue_data
+
+@app.get("/organizer/{user_id}")
+async def get_organizer_profile(user_id: int):
+    """Fetch organizer-specific profile data."""
+    pool = await db.get_connection()
+    async with pool.acquire() as conn:
+        query = """
+        SELECT website
+        FROM organizer 
+        WHERE user_id = $1;
+        """
+        result = await conn.fetchrow(query, user_id)
+        if not result:
+            return JSONResponse({"error": "Organizer not found"}, status_code=404)
+        
+        organizer_data = dict(result)
+        print(f"Organizer profile data for user {user_id}: {organizer_data}")
+        return organizer_data
 
 if __name__ == "__main__":
     import uvicorn

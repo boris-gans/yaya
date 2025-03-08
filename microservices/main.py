@@ -184,13 +184,16 @@ security = HTTPBearer()
 async def get_current_user(credentials: HTTPAuthorizationCredentials = Security(security)):
     try:
         token = credentials.credentials
-        payload = decode_jwt(token)
-        username = payload.get("username")
-        if username is None:
+        success, payload = decode_jwt(token)
+        if not success:
+            raise HTTPException(status_code=401, detail=payload)  # payload contains error message
+        
+        # Get username from the base64 decoded data
+        decoded_data = json.loads(base64.b64decode(payload["data"]).decode("utf-8"))
+        if not decoded_data.get('username'):
             raise HTTPException(status_code=401, detail="Invalid authentication token")
-        return payload
-    except JWTError:
-        raise HTTPException(status_code=401, detail="Invalid authentication token")
+        
+        return decoded_data
     except Exception as e:
         raise HTTPException(status_code=401, detail=str(e))
 
@@ -201,18 +204,21 @@ def rotate_keys():
     # print(f"New secret key: {SECRET_KEYS['current']}")
 
 def create_jwt(data: dict, expires_delta: Optional[timedelta] = None):
-    to_encode = {}
-    to_encode['id'] = data['id']
+    to_encode = {
+        'id': data['id'],
+        'username': data['username']  # Add username explicitly
+    }
     bytes = base64.b64encode(json.dumps(data).encode('utf-8')).decode('utf-8')
 
     if expires_delta:
         to_encode["exp"] = int((datetime.now(timezone.utc) + expires_delta).timestamp())
     else:
         to_encode["exp"] = int((datetime.now(timezone.utc) + timedelta(minutes=ACCESS_TOKEN_EXPIRE_MINUTES)).timestamp())
+    
+    to_encode['data'] = bytes
+
     print(f"Creating jwt with: {to_encode}")
     print(f"Encoding: {bytes}")
-
-    to_encode['data'] = bytes
 
     return jwt.encode(to_encode, SECRET_KEY, algorithm=ALGORITHM)
 
@@ -296,14 +302,17 @@ async def login(creds: dict = Body(...)):
         raise HTTPException(status_code=401, detail="Missing credentials")
     
     user_data = await get_current_user_postgres(identifier, pw)
-    sensitive_data['username'] = user_data['username']  # Store actual username from DB
-    sensitive_data['pw'] = pw
-    print(f"\nUser data: {user_data}")
-    print(f"\nSenitive data: {sensitive_data}")
-
+    # Make sure username is included in user_data
+    if 'username' not in user_data:
+        user_data['username'] = user_data.get('email', identifier)
+    
     token = create_jwt(user_data, timedelta(minutes=int(ACCESS_TOKEN_EXPIRE_MINUTES)))
     refresh_token = create_refresh_token(user_data)
-    return {"access_token": token, "refresh_token": refresh_token}
+    return {
+        "access_token": token, 
+        "refresh_token": refresh_token,
+        "token_type": "bearer"
+    }
 
 @app.post("/refresh")
 def refresh_access_token(body: dict=Body(...)):
@@ -355,10 +364,6 @@ async def background_write(data: dict):
     """
     Endpoint for background message publishing, this will be for non-essential writes such as: num_clicks, num_impressions, etc.
     """
-# {
-# "data": {
-# "metric_type": "CLICK",
-# "event_id": 7}}
 
     # print(data.get('data').get('metric_type'))
     if data.get('metric_type') not in [m.value for m in MetricType]:
@@ -379,7 +384,7 @@ async def background_write(data: dict):
 # --------------- Streaming Read Endpoints ----------------
 @app.get("/events", response_class=StreamingResponse)
 async def proxy_get_events():
-    """Proxy request for streaming all events."""
+    """Proxy request for streaming all events. Public endpoint."""
     async with httpx.AsyncClient() as client:
         try:
             response = await client.get(f"{DB_READER_SERVICE_URL}/events", timeout=30.0)
@@ -400,7 +405,7 @@ async def proxy_get_events():
 
 @app.get("/djs", response_class=StreamingResponse)
 async def proxy_get_djs():
-    """Proxy request for streaming all DJs and their socials."""
+    """Proxy request for streaming all DJs and their socials. Public endpoint."""
     async with httpx.AsyncClient() as client:
         try:
             response = await client.get(f"{DB_READER_SERVICE_URL}/djs", timeout=30.0)
@@ -423,7 +428,7 @@ async def proxy_get_djs():
 # ----------- Direct Proxy Read Endpoints ---------------
 @app.get("/event/{event_id}")
 async def proxy_get_event_details(event_id: int):
-    """Proxy request for getting detailed event info (venue & organizer)."""
+    """Proxy request for getting detailed event info (venue & organizer). Public endpoint."""
     async with httpx.AsyncClient() as client:
         try:
             response = await client.get(f"{DB_READER_SERVICE_URL}/event/{event_id}", timeout=10.0)
@@ -431,6 +436,57 @@ async def proxy_get_event_details(event_id: int):
         except httpx.HTTPError as e:
             raise HTTPException(status_code=500, detail=str(e))
 
+@app.get("/profile/{user_id}")
+async def get_user_profile(
+    user_id: int,
+    current_user: dict = Depends(get_current_user)
+):
+    """Proxy request for getting user profile data. Private endpoint."""
+    async with httpx.AsyncClient() as client:
+        try:
+            response = await client.get(
+                f"{DB_READER_SERVICE_URL}/profile/{user_id}",
+                timeout=10.0
+            )
+            
+            if response.status_code == 404:
+                raise HTTPException(status_code=404, detail="User not found")
+            
+            profile_data = response.json()
+            print(f"Profile data: {profile_data}")
+
+            # Add role-specific data based on role_id
+            if "role_id" in profile_data:
+                role_id = profile_data["role_id"]
+                
+                if role_id == ROLE_IDS["DJ"]:
+                    dj_response = await client.get(
+                        f"{DB_READER_SERVICE_URL}/dj/{user_id}",
+                        timeout=10.0
+                    )
+                    if dj_response.status_code == 200:
+                        profile_data["dj_data"] = dj_response.json()
+                
+                elif role_id == ROLE_IDS["VENUE"]:
+                    venue_response = await client.get(
+                        f"{DB_READER_SERVICE_URL}/venue/{user_id}",
+                        timeout=10.0
+                    )
+                    if venue_response.status_code == 200:
+                        profile_data["venue_data"] = venue_response.json()
+                
+                elif role_id == ROLE_IDS["ORGANIZER"]:
+                    org_response = await client.get(
+                        f"{DB_READER_SERVICE_URL}/organizer/{user_id}",
+                        timeout=10.0
+                    )
+                    if org_response.status_code == 200:
+                        profile_data["organizer_data"] = org_response.json()
+
+            return JSONResponse(content=profile_data)
+            
+        except httpx.HTTPError as e:
+            raise HTTPException(status_code=500, detail=str(e))
 
 # ----------- Recommendation Endpoints ---------------
 @app.get("/recommendations/{user_id}")
@@ -486,57 +542,7 @@ def protected(token: str):
     print(f"Encoded data:\n {user}")
     return {"message": f"Hello, User {user[1]['user_id']}!", "other_data": user[1]}
 
-@app.get("/profile/{user_id}")
-async def get_user_profile(
-    user_id: int
-    # current_user: dict = Depends(get_current_user)
-):
-    """Proxy request for getting user profile data."""
-    async with httpx.AsyncClient() as client:
-        try:
-            response = await client.get(
-                f"{DB_READER_SERVICE_URL}/profile/{user_id}",
-                timeout=10.0
-            )
-            
-            if response.status_code == 404:
-                raise HTTPException(status_code=404, detail="User not found")
-            
-            profile_data = response.json()
-            print(f"Profile data: {profile_data}")
 
-            # Add role-specific data based on role_id
-            if "role_id" in profile_data:
-                role_id = profile_data["role_id"]
-                
-                if role_id == ROLE_IDS["DJ"]:
-                    dj_response = await client.get(
-                        f"{DB_READER_SERVICE_URL}/dj/{user_id}",
-                        timeout=10.0
-                    )
-                    if dj_response.status_code == 200:
-                        profile_data["dj_data"] = dj_response.json()
-                
-                elif role_id == ROLE_IDS["VENUE"]:
-                    venue_response = await client.get(
-                        f"{DB_READER_SERVICE_URL}/venue/{user_id}",
-                        timeout=10.0
-                    )
-                    if venue_response.status_code == 200:
-                        profile_data["venue_data"] = venue_response.json()
-                
-                elif role_id == ROLE_IDS["ORGANIZER"]:
-                    org_response = await client.get(
-                        f"{DB_READER_SERVICE_URL}/organizer/{user_id}",
-                        timeout=10.0
-                    )
-                    if org_response.status_code == 200:
-                        profile_data["organizer_data"] = org_response.json()
-
-            return JSONResponse(content=profile_data)
-            
-        except httpx.HTTPError as e:
-            raise HTTPException(status_code=500, detail=str(e))
 
 
 
