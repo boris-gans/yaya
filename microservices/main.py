@@ -1,4 +1,4 @@
-from fastapi import FastAPI, Request, HTTPException, Depends, Body, BackgroundTasks
+from fastapi import FastAPI, Request, HTTPException, Depends, Body, BackgroundTasks, Security
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import StreamingResponse, JSONResponse
 from jose import jwt, JWTError, ExpiredSignatureError
@@ -22,6 +22,7 @@ import base64
 import json
 import httpx
 import time
+from fastapi.security import HTTPAuthorizationCredentials, HTTPBearer
 
 
 
@@ -160,17 +161,33 @@ def handle_dj_event(data):
     return {"Success": response.success, "Message": response.message}
 
 type_handlers = {
-    "event": handle_event,
     "venue": handle_venue,
     "user": handle_user,
     "dj": handle_dj,
     "org": handle_org,
+    
+    "event": handle_event,
     "publish_event": handle_publish,
     "dj_event": handle_dj_event
 }
 
 
 # --------------- JWT Util Functions ----------------
+security = HTTPBearer()
+
+async def get_current_user(credentials: HTTPAuthorizationCredentials = Security(security)):
+    try:
+        token = credentials.credentials
+        payload = decode_jwt(token)
+        username = payload.get("username")
+        if username is None:
+            raise HTTPException(status_code=401, detail="Invalid authentication token")
+        return payload
+    except JWTError:
+        raise HTTPException(status_code=401, detail="Invalid authentication token")
+    except Exception as e:
+        raise HTTPException(status_code=401, detail=str(e))
+
 def rotate_keys():
     print("dont use this function")
     # SECRET_KEYS["previous"] = SECRET_KEYS["current"]  # Move current to previous
@@ -181,9 +198,6 @@ def create_jwt(data: dict, expires_delta: Optional[timedelta] = None):
     to_encode = {}
     to_encode['id'] = data['id']
     bytes = base64.b64encode(json.dumps(data).encode('utf-8')).decode('utf-8')
-    # encoded_str = bytes.decode('utf-8')
-
-    # notifications, music servce, established, username, email, location, language
 
     if expires_delta:
         to_encode["exp"] = int((datetime.now(timezone.utc) + expires_delta).timestamp())
@@ -209,16 +223,15 @@ def decode_jwt(token: str) -> Dict:
         print(f"Time to expiration: {exp - current_time}")
         if current_time > exp:
             return(False, "Token has expired")
-            # raise HTTPException(status_code=401, detail="Token has expired")
 
         decoded = json.loads(base64.b64decode(payload["data"]).decode("utf-8"))
         print(f"Payload at decoding: {payload}")
         print(f"Base64 data: {decoded}")
         return (True, payload)
-        # return payload
+
     except ExpiredSignatureError:
         return (False, "Token has expired")
-        # raise HTTPException(status_code=401, detail="Token has expired")
+
     except JWTError:
         try:
             payload = jwt.decode(token, SECRET_KEY_PREVIOUS, algorithms=[ALGORITHM])
@@ -227,10 +240,9 @@ def decode_jwt(token: str) -> Dict:
             print(f"Payload at decoding: {payload}")
             print(f"Base64 data: {decoded}")
             return (True, payload)
-            # return payload
+
         except:
             return (False, "Invalid token")
-            # raise HTTPException(status_code=401, detail="Invalid token")
     
 def verify_refresh_token(refresh_token: str):
     try:
@@ -244,26 +256,11 @@ def verify_refresh_token(refresh_token: str):
             return (True, payload)
         except:
             return (False, "Invalid token")
-            # raise HTTPException(status_code=401, detail="Invalid token")
         # Do I need to check the previous key for refresh tokens?? 
 
-# def encode_jwt(data: Dict) -> str:
-#     expiry = (datetime.now(timezone.utc) + expires_delta).timestamp()
-#     data["exp"] = expiry
-#     return jwt.encode(data, SECRET_KEYS, algorithm=ALGORITHM)
-# should have same expiry as user's token
 
-# async def create_pool():
-#     try:
-#         pool = await aiomysql.create_pool(
-#             empty
-#         )
-#         return pool
-#     except aiomysql.Error as e:
-#         print(f"Database connection error: {e}")
-#         return None
-
-async def get_current_user_postgres(username: str, pw: str):
+# -------------------- Auth Functions -----------------------
+async def get_current_user_postgres(username_or_email: str, pw: str):
     global db_pool
     if not db_pool:
         raise HTTPException(status_code=503, detail="Database connection failed")
@@ -271,11 +268,15 @@ async def get_current_user_postgres(username: str, pw: str):
     try:
         async with db_pool.acquire() as conn:
             row = await conn.fetchrow(
-                "SELECT id, username, first_name, last_name, email, location, language FROM user_data WHERE username = $1 AND pw = $2",
-                username, pw
+                """
+                SELECT id, username, first_name, last_name, email, location, language 
+                FROM user_data 
+                WHERE (username = $1 OR email = $1) AND pw = $2
+                """,
+                username_or_email, pw
             )
             if not row:
-                raise HTTPException(status_code=401, detail="User not found")
+                raise HTTPException(status_code=401, detail="Invalid credentials")
             return dict(row)
     except asyncpg.PostgresError as e:
         raise HTTPException(status_code=500, detail=f"Database query error: {str(e)}")
@@ -283,13 +284,13 @@ async def get_current_user_postgres(username: str, pw: str):
 
 @app.post("/login")
 async def login(creds: dict = Body(...)):
-    username = creds.get("username")
+    identifier = creds.get("username")  # This could be either username or email
     pw = creds.get("pw")
-    if not username or not pw:
+    if not identifier or not pw:
         raise HTTPException(status_code=401, detail="Missing credentials")
     
-    user_data = await get_current_user_postgres(username, pw)
-    sensitive_data['username'] = username
+    user_data = await get_current_user_postgres(identifier, pw)
+    sensitive_data['username'] = user_data['username']  # Store actual username from DB
     sensitive_data['pw'] = pw
     print(f"\nUser data: {user_data}")
     print(f"\nSenitive data: {sensitive_data}")
@@ -315,20 +316,31 @@ def refresh_access_token(body: dict=Body(...)):
 
 
 # --------------- Write Endpoints ----------------
-@app.post("/essential_write/")
-async def essential_write(data: dict):
+@app.post("/essential_write/register")
+async def essential_write_register(data: dict = Body(...)):
     """
-    Calls the gRPC service for essential database writes.
+    Handles entity creation/registration (users, DJs, venues, organizers).
+    No authentication required.
     """
-    # user = decode_jwt(data.get("token"))
-    # if not user[0]:
-    #     raise HTTPException(status_code=401, detail=user[1])
-
-    # print(f"\nUser {user[1]['user_id']} writing to DB")
-    
     obj_type = data.get("type")
     obj_data = data.get("data")
     
+    handler = type_handlers.get(obj_type, lambda x: {"error": f"Unknown type: {obj_type}"})  
+    return handler(obj_data)
+
+@app.post("/essential_write/modify")
+async def essential_write_modify(
+    data: dict = Body(...),
+    current_user: dict = Depends(get_current_user)
+):
+    """
+    Handles modifications to existing entities.
+    Requires JWT authentication.
+    """
+    obj_type = data.get("type")
+    obj_data = data.get("data")
+    
+    print(f"\nUser {current_user['id']} modifying DB with operation: {obj_type}")
     handler = type_handlers.get(obj_type, lambda x: {"error": f"Unknown type: {obj_type}"})  
     return handler(obj_data)
 
@@ -467,6 +479,9 @@ def protected(token: str):
 
     print(f"Encoded data:\n {user}")
     return {"message": f"Hello, User {user[1]['user_id']}!", "other_data": user[1]}
+
+
+
 
 
 if __name__ == "__main__":
