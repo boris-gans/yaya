@@ -552,6 +552,46 @@ def protected(token: str):
     print(f"Encoded data:\n {user}")
     return {"message": f"Hello, User {user[1]['user_id']}!", "other_data": user[1]}
 
+@app.get("/events/{user_id}")
+async def get_user_events(
+    user_id: int
+    # current_user: dict = Depends(get_current_user)
+):
+    """Proxy request for getting user's events based on their role."""
+    async with httpx.AsyncClient() as client:
+        try:
+            role_id = 3
+            # role_id = current_user.get('role_id')
+            if not role_id:
+                raise HTTPException(status_code=400, detail="User role not found")
+
+            # Route to appropriate endpoint based on role
+            if role_id == ROLE_IDS["DJ"]:
+                response = await client.get(
+                    f"{DB_READER_SERVICE_URL}/events/dj/{user_id}",
+                    timeout=10.0
+                )
+            elif role_id == ROLE_IDS["VENUE"]:
+                response = await client.get(
+                    f"{DB_READER_SERVICE_URL}/events/venue/{user_id}",
+                    timeout=10.0
+                )
+            elif role_id == ROLE_IDS["ORGANIZER"]:
+                response = await client.get(
+                    f"{DB_READER_SERVICE_URL}/events/organizer/{user_id}",
+                    timeout=10.0
+                )
+            else:
+                raise HTTPException(status_code=400, detail="Invalid role for event lookup")
+
+            if response.status_code == 404:
+                raise HTTPException(status_code=404, detail="Events not found")
+            
+            return JSONResponse(content=response.json())
+            
+        except httpx.HTTPError as e:
+            raise HTTPException(status_code=500, detail=str(e))
+
 
 
 

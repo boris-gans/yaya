@@ -446,6 +446,354 @@ async def get_organizer_profile(user_id: int):
         print(f"Organizer profile data for user {user_id}: {organizer_data}")
         return organizer_data
 
+@app.get("/events/dj/{user_id}")
+async def get_dj_events(user_id: int):
+    """Fetch events specific to a DJ with three different categories."""
+    pool = await db.get_connection()
+    async with pool.acquire() as conn:
+        # First get the DJ's ID
+        dj_query = """
+        SELECT id FROM dj WHERE user_id = $1;
+        """
+        dj_result = await conn.fetchrow(dj_query, user_id)
+        if not dj_result:
+            return JSONResponse({"error": "DJ not found"}, status_code=404)
+        
+        dj_id = dj_result['id']
+        
+        # Get all event IDs for this DJ
+        events_query = """
+        WITH dj_events AS (
+            SELECT event_id 
+            FROM event_dj 
+            WHERE dj_id = $1
+        ),
+        base_event_data AS (
+            SELECT 
+                e.id as event_id,
+                e.event_name,
+                e.date,
+                e.pre_event_poster,
+                e.pre_bio,
+                e.venue_id,
+                v.name as venue_name,
+                v.address as venue_address,
+                v.city as venue_city,
+                v.state as venue_state,
+                v.zip as venue_zip,
+                v.country as venue_country,
+                o.id as organizer_id,
+                o.name as organizer_name,
+                pe.completed,
+                pe.event_poster,
+                pe.bio,
+                pe.published_at
+            FROM dj_events de
+            JOIN event_data e ON de.event_id = e.id
+            JOIN venues v ON e.venue_id = v.id
+            JOIN organizer o ON e.organizer_id = o.id
+            LEFT JOIN published_events pe ON e.id = pe.event_id
+        )
+        SELECT 
+            bed.*,
+            cem.* as metrics
+        FROM base_event_data bed
+        LEFT JOIN completed_event_metrics cem ON bed.event_id = cem.event_id;
+        """
+        
+        events = await conn.fetch(events_query, dj_id)
+        
+        # Organize events into three categories
+        completed_events = []
+        published_events = []
+        unpublished_events = []
+        
+        for event in events:
+            event_dict = dict(event)
+            venue_info = {
+                "venue_id": event_dict["venue_id"],
+                "venue_name": event_dict["venue_name"],
+                "venue_address": event_dict["venue_address"],
+                "venue_city": event_dict["venue_city"],
+                "venue_state": event_dict["venue_state"],
+                "venue_zip": event_dict["venue_zip"],
+                "venue_country": event_dict["venue_country"]
+            }
+            organizer_info = {
+                "organizer_id": event_dict["organizer_id"],
+                "organizer_name": event_dict["organizer_name"]
+            }
+            
+            if event_dict.get("completed"):
+                completed_events.append({
+                    "event_id": event_dict["event_id"],
+                    "event_name": event_dict["event_name"],
+                    "date": event_dict["date"],
+                    "venue": venue_info,
+                    "organizer": organizer_info,
+                    "metrics": event_dict.get("metrics")
+                })
+            elif event_dict.get("published_at"):
+                published_events.append({
+                    "event_id": event_dict["event_id"],
+                    "event_name": event_dict["event_name"],
+                    "date": event_dict["date"],
+                    "venue": venue_info,
+                    "organizer": organizer_info,
+                    "event_poster": event_dict["event_poster"],
+                    "bio": event_dict["bio"],
+                    "published_at": event_dict["published_at"]
+                })
+            else:
+                unpublished_events.append({
+                    "event_id": event_dict["event_id"],
+                    "event_name": event_dict["event_name"],
+                    "date": event_dict["date"],
+                    "venue": venue_info,
+                    "organizer": organizer_info,
+                    "pre_event_poster": event_dict["pre_event_poster"],
+                    "pre_bio": event_dict["pre_bio"]
+                })
+        
+        result = {
+            "completed_events": completed_events,
+            "published_events": published_events,
+            "unpublished_events": unpublished_events
+        }
+        
+        print(f"DJ events for user {user_id}: {result}")
+        # Encode the result with CustomJSONEncoder before creating JSONResponse
+        json_str = json.dumps(result, cls=CustomJSONEncoder)
+        return JSONResponse(content=json.loads(json_str))
+
+@app.get("/events/venue/{user_id}")
+async def get_venue_events(user_id: int):
+    """Fetch events specific to a venue with three different categories."""
+    pool = await db.get_connection()
+    async with pool.acquire() as conn:
+        # First get the venue's ID
+        venue_query = """
+        SELECT id FROM venues WHERE user_id = $1;
+        """
+        venue_result = await conn.fetchrow(venue_query, user_id)
+        if not venue_result:
+            return JSONResponse({"error": "Venue not found"}, status_code=404)
+        
+        venue_id = venue_result['id']
+        
+        # Get all events for this venue
+        events_query = """
+        WITH base_event_data AS (
+            SELECT 
+                e.id as event_id,
+                e.event_name,
+                e.date,
+                e.pre_event_poster,
+                e.pre_bio,
+                o.id as organizer_id,
+                o.name as organizer_name,
+                pe.completed,
+                pe.event_poster,
+                pe.bio,
+                pe.published_at,
+                (
+                    SELECT jsonb_agg(
+                        jsonb_build_object(
+                            'dj_id', d.id,
+                            'dj_name', d.alias
+                        )
+                    )
+                    FROM event_dj ed
+                    JOIN dj d ON ed.dj_id = d.id
+                    WHERE ed.event_id = e.id
+                ) as djs
+            FROM event_data e
+            JOIN organizer o ON e.organizer_id = o.id
+            LEFT JOIN published_events pe ON e.id = pe.event_id
+            WHERE e.venue_id = $1
+        )
+        SELECT 
+            bed.*,
+            cem.* as metrics
+        FROM base_event_data bed
+        LEFT JOIN completed_event_metrics cem ON bed.event_id = cem.event_id;
+        """
+        
+        events = await conn.fetch(events_query, venue_id)
+        
+        # Organize events into three categories
+        completed_events = []
+        published_events = []
+        unpublished_events = []
+        
+        for event in events:
+            event_dict = dict(event)
+            # Parse the JSONB djs array
+            try:
+                djs = json.loads(event_dict["djs"]) if event_dict.get("djs") else []
+            except (TypeError, json.JSONDecodeError):
+                djs = []
+            
+            event_info = {
+                "event_id": event_dict["event_id"],
+                "event_name": event_dict["event_name"],
+                "date": event_dict["date"],
+                "organizer": {
+                    "organizer_id": event_dict["organizer_id"],
+                    "organizer_name": event_dict["organizer_name"]
+                },
+                "djs": djs  # Now properly parsed JSON array
+            }
+            
+            if event_dict.get("completed"):
+                completed_events.append({
+                    **event_info,
+                    "metrics": event_dict.get("metrics")
+                })
+            elif event_dict.get("published_at"):
+                published_events.append({
+                    **event_info,
+                    "event_poster": event_dict["event_poster"],
+                    "bio": event_dict["bio"],
+                    "published_at": event_dict["published_at"]
+                })
+            else:
+                unpublished_events.append({
+                    **event_info,
+                    "pre_event_poster": event_dict["pre_event_poster"],
+                    "pre_bio": event_dict["pre_bio"]
+                })
+        
+        result = {
+            "completed_events": completed_events,
+            "published_events": published_events,
+            "unpublished_events": unpublished_events
+        }
+        
+        print(f"Venue events for user {user_id}: {result}")
+        json_str = json.dumps(result, cls=CustomJSONEncoder)
+        return JSONResponse(content=json.loads(json_str))
+
+@app.get("/events/organizer/{user_id}")
+async def get_organizer_events(user_id: int):
+    """Fetch events specific to an organizer with three different categories."""
+    pool = await db.get_connection()
+    async with pool.acquire() as conn:
+        # First get the organizer's ID
+        organizer_query = """
+        SELECT id FROM organizer WHERE user_id = $1;
+        """
+        organizer_result = await conn.fetchrow(organizer_query, user_id)
+        if not organizer_result:
+            return JSONResponse({"error": "Organizer not found"}, status_code=404)
+        
+        organizer_id = organizer_result['id']
+        
+        # Get all events for this organizer
+        events_query = """
+        WITH base_event_data AS (
+            SELECT 
+                e.id as event_id,
+                e.event_name,
+                e.date,
+                e.pre_event_poster,
+                e.pre_bio,
+                v.id as venue_id,
+                v.name as venue_name,
+                v.address as venue_address,
+                v.city as venue_city,
+                v.state as venue_state,
+                v.zip as venue_zip,
+                v.country as venue_country,
+                pe.completed,
+                pe.event_poster,
+                pe.bio,
+                pe.published_at,
+                (
+                    SELECT jsonb_agg(
+                        jsonb_build_object(
+                            'dj_id', d.id,
+                            'dj_name', d.alias
+                        )
+                    )
+                    FROM event_dj ed
+                    JOIN dj d ON ed.dj_id = d.id
+                    WHERE ed.event_id = e.id
+                ) as djs
+            FROM event_data e
+            JOIN venues v ON e.venue_id = v.id
+            LEFT JOIN published_events pe ON e.id = pe.event_id
+            WHERE e.organizer_id = $1
+        )
+        SELECT 
+            bed.*,
+            cem.* as metrics
+        FROM base_event_data bed
+        LEFT JOIN completed_event_metrics cem ON bed.event_id = cem.event_id;
+        """
+        
+        events = await conn.fetch(events_query, organizer_id)
+        
+        # Organize events into three categories
+        completed_events = []
+        published_events = []
+        unpublished_events = []
+        
+        for event in events:
+            event_dict = dict(event)
+            # Parse the JSONB djs array
+            try:
+                djs = json.loads(event_dict["djs"]) if event_dict.get("djs") else []
+            except (TypeError, json.JSONDecodeError):
+                djs = []
+            
+            venue_info = {
+                "venue_id": event_dict["venue_id"],
+                "venue_name": event_dict["venue_name"],
+                "venue_address": event_dict["venue_address"],
+                "venue_city": event_dict["venue_city"],
+                "venue_state": event_dict["venue_state"],
+                "venue_zip": event_dict["venue_zip"],
+                "venue_country": event_dict["venue_country"]
+            }
+            
+            event_info = {
+                "event_id": event_dict["event_id"],
+                "event_name": event_dict["event_name"],
+                "date": event_dict["date"],
+                "venue": venue_info,
+                "djs": djs
+            }
+            
+            if event_dict.get("completed"):
+                completed_events.append({
+                    **event_info,
+                    "metrics": event_dict.get("metrics")
+                })
+            elif event_dict.get("published_at"):
+                published_events.append({
+                    **event_info,
+                    "event_poster": event_dict["event_poster"],
+                    "bio": event_dict["bio"],
+                    "published_at": event_dict["published_at"]
+                })
+            else:
+                unpublished_events.append({
+                    **event_info,
+                    "pre_event_poster": event_dict["pre_event_poster"],
+                    "pre_bio": event_dict["pre_bio"]
+                })
+        
+        result = {
+            "completed_events": completed_events,
+            "published_events": published_events,
+            "unpublished_events": unpublished_events
+        }
+        
+        print(f"Organizer events for user {user_id}: {result}")
+        json_str = json.dumps(result, cls=CustomJSONEncoder)
+        return JSONResponse(content=json.loads(json_str))
+
 if __name__ == "__main__":
     import uvicorn
     uvicorn.run("db_reads:app", host="0.0.0.0", port=8001, reload=True)
