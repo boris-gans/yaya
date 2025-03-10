@@ -38,6 +38,7 @@ GENRE_MAP = {
     "AFRO_HOUSE": 6,
     "DEEP_HOUSE": 7
 }
+
 VENUE_TYPE_MAP = {
     "nightclub": 1,
     "warehouse": 2,
@@ -173,7 +174,6 @@ class WriteService(write_service_pb2_grpc.WriteServiceServicer):
             conn = pool.getconn()
             cur = conn.cursor()
             try:
-                # Insert event
                 event_query = """
                     INSERT INTO event_data (organizer_id, venue_id, event_name, date, budget, pre_event_poster, pre_bio)
                     VALUES (%s, %s, %s, %s, %s, %s, %s) RETURNING id;
@@ -197,11 +197,15 @@ class WriteService(write_service_pb2_grpc.WriteServiceServicer):
                     INSERT INTO event_genres (event_id, genre_id)
                     VALUES (%s, %s);
                 """
-                for genre in request.data.genres:
-                    genre_id = GENRE_MAP.get(genre)
 
-                    # genre_id = self.GENRE_MAP[Genre.Name(genre)]
-                    cur.execute(genre_query, (event_id, genre_id))
+                for genre in request.data.genres:
+                    genre_id = GENRE_ID_MAP.get(genre)
+                    print(f"Genre {genre} to id: {genre_id}")
+
+                    if genre in GENRE_ID_MAP:
+                        cur.execute(genre_query, (event_id, genre_id))
+                    else:
+                        print(f"Warnig: genre {genre} not found")
 
                 conn.commit()
                 return write_service_pb2.CreateEntityResponse(

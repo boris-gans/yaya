@@ -356,9 +356,14 @@ async def essential_write_register(data: dict = Body(...)):
     """
     obj_type = data.get("type")
     obj_data = data.get("data")
+    print(obj_data)
     
     handler = type_handlers.get(obj_type, lambda x: {"error": f"Unknown type: {obj_type}"})  
-    return handler(obj_data)
+    response = handler(obj_data)
+    print(response)
+    if response.get('Success') == 'false':
+        raise HTTPException(status_code=500, detail=response.get('Message'))
+    return response
 
 @app.post("/essential_write/modify")
 async def essential_write_modify(

@@ -1,6 +1,16 @@
 syntax = "proto3";
 import "google/protobuf/timestamp.proto";
 
+enum Genre {
+    DNB = 0;
+    EDM = 1;
+    HOUSE = 2;
+    TECHNO = 3;
+    REGGAETON = 4;
+    AFRO_HOUSE = 5;
+    DEEP_HOUSE = 6;
+}
+
 message EventData {
   int32 org_id = 1;
   int32 venue_id = 2;
@@ -34,15 +44,6 @@ enum SpendClass {
     NA = 5;
 }
 
-enum Genre {
-    DNB = 0;
-    EDM = 1;
-    HOUSE = 2;
-    TECHNO = 3;
-    REGGAETON = 4;
-    AFRO_HOUSE = 5;
-    DEEP_HOUSE = 6;
-}
 
 message UserData {
   string username = 1;
