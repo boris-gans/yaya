@@ -28,16 +28,16 @@ GENDER_MAP = {0: "Male", 1: "Female", 2: "Other"}
 SPEND_CLASS_MAP = {0: "A", 1: "B", 2: "C", 3: "D", 4: "E"}
 ROLE_IDS = {"USER": 1, "DJ": 2, "ORGANIZER": 3, "VENUE": 4}
 ROLE_NAMES = {v: k for k, v in ROLE_IDS.items()}
-GENRE_ID_MAP = {0: 4, 1: 2, 2: 1, 3: 5, 4: 3, 5: 6, 6: 7}
-GENRE_MAP = {
-    "HOUSE": 1,
-    "EDM": 2,
-    "REGGAETON": 3,
-    "DNB": 4,
-    "TECHNO": 5,
-    "AFRO_HOUSE": 6,
-    "DEEP_HOUSE": 7
+GENRE_ID_MAP = {
+    0: 4,  # DNB
+    1: 2,  # EDM
+    2: 1,  # HOUSE
+    3: 5,  # TECHNO
+    4: 3,  # REGGAETON
+    5: 6,  # AFRO_HOUSE
+    6: 7   # DEEP_HOUSE
 }
+
 
 VENUE_TYPE_MAP = {
     "nightclub": 1,
@@ -187,7 +187,6 @@ class WriteService(write_service_pb2_grpc.WriteServiceServicer):
                     request.data.pre_event_poster,
                     request.data.pre_bio
                 )
-                print(cur.mogrify(event_query, event_values).decode())
 
                 cur.execute(event_query, event_values)
                 event_id = cur.fetchone()[0]
@@ -205,7 +204,7 @@ class WriteService(write_service_pb2_grpc.WriteServiceServicer):
                     if genre in GENRE_ID_MAP:
                         cur.execute(genre_query, (event_id, genre_id))
                     else:
-                        print(f"Warnig: genre {genre} not found")
+                        print(f"Warning: genre {genre} not found")
 
                 conn.commit()
                 return write_service_pb2.CreateEntityResponse(
