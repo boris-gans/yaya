@@ -538,7 +538,11 @@ async def get_dj_events(user_id: int):
                 pe.completed,
                 pe.event_poster,
                 pe.bio,
-                pe.published_at
+                pe.published_at,
+                CASE 
+                    WHEN pe.event_id IS NOT NULL THEN 'Published'
+                    ELSE 'Pending'
+                END as status
             FROM dj_events de
             JOIN event_data e ON de.event_id = e.id
             JOIN venues v ON e.venue_id = v.id
@@ -582,7 +586,8 @@ async def get_dj_events(user_id: int):
                     "date": event_dict["date"],
                     "venue": venue_info,
                     "organizer": organizer_info,
-                    "metrics": event_dict.get("metrics")
+                    "metrics": event_dict.get("metrics"),
+                    "status": event_dict["status"]
                 })
             elif event_dict.get("published_at"):
                 published_events.append({
@@ -593,7 +598,8 @@ async def get_dj_events(user_id: int):
                     "organizer": organizer_info,
                     "event_poster": event_dict["event_poster"],
                     "bio": event_dict["bio"],
-                    "published_at": event_dict["published_at"]
+                    "published_at": event_dict["published_at"],
+                    "status": event_dict["status"]
                 })
             else:
                 unpublished_events.append({
@@ -603,7 +609,8 @@ async def get_dj_events(user_id: int):
                     "venue": venue_info,
                     "organizer": organizer_info,
                     "pre_event_poster": event_dict["pre_event_poster"],
-                    "pre_bio": event_dict["pre_bio"]
+                    "pre_bio": event_dict["pre_bio"],
+                    "status": event_dict["status"]
                 })
         
         result = {
@@ -647,6 +654,10 @@ async def get_venue_events(user_id: int):
                 pe.event_poster,
                 pe.bio,
                 pe.published_at,
+                CASE 
+                    WHEN pe.event_id IS NOT NULL THEN 'Published'
+                    ELSE 'Pending'
+                END as status,
                 (
                     SELECT jsonb_agg(
                         jsonb_build_object(
@@ -693,7 +704,8 @@ async def get_venue_events(user_id: int):
                     "organizer_id": event_dict["organizer_id"],
                     "organizer_name": event_dict["organizer_name"]
                 },
-                "djs": djs  # Now properly parsed JSON array
+                "djs": djs,
+                "status": event_dict["status"]
             }
             
             if event_dict.get("completed"):
@@ -760,6 +772,10 @@ async def get_organizer_events(user_id: int):
                 pe.event_poster,
                 pe.bio,
                 pe.published_at,
+                CASE 
+                    WHEN pe.event_id IS NOT NULL THEN 'Published'
+                    ELSE 'Pending'
+                END as status,
                 (
                     SELECT jsonb_agg(
                         jsonb_build_object(
@@ -840,7 +856,8 @@ async def get_organizer_events(user_id: int):
                 "event_name": event_dict["event_name"],
                 "date": event_dict["date"],
                 "venue": venue_info,
-                "djs": djs
+                "djs": djs,
+                "status": event_dict["status"]
             }
             
             if event_dict.get("completed"):
