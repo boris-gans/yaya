@@ -473,12 +473,12 @@ async def proxy_get_event_details(event_id: int):
 
 @app.get("/profile/{user_id}")
 async def get_user_profile(
-    user_id: int,
     current_user: dict = Depends(get_current_user)
 ):
     """Proxy request for getting user profile data. Private endpoint."""
     async with httpx.AsyncClient() as client:
         try:
+            user_id = current_user.get('id')
             response = await client.get(
                 f"{DB_READER_SERVICE_URL}/profile/{user_id}",
                 timeout=10.0
