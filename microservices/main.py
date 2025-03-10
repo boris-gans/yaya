@@ -554,14 +554,14 @@ def protected(token: str):
 
 @app.get("/events/{user_id}")
 async def get_user_events(
-    user_id: int
-    # current_user: dict = Depends(get_current_user)
+    user_id: int,
+    current_user: dict = Depends(get_current_user)
 ):
     """Proxy request for getting user's events based on their role."""
     async with httpx.AsyncClient() as client:
         try:
-            role_id = 3
-            # role_id = current_user.get('role_id')
+            # role_id = 3
+            role_id = current_user.get('role_id')
             if not role_id:
                 raise HTTPException(status_code=400, detail="User role not found")
 
