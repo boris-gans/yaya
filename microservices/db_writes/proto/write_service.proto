@@ -11,6 +11,7 @@ message EventData {
   float budget = 7;
   optional string pre_event_poster = 8;
   optional string pre_bio = 9;
+  repeated Genre genres = 10;
 }
 
 message CreateEventRequest {

@@ -778,21 +778,31 @@ async def get_organizer_events(user_id: int):
         )
         SELECT 
             bed.*,
-            cem.* as metrics
+            cem.completed_at as metrics_completed_at,
+            cem.fill_ratio as metrics_fill_ratio,
+            cem.ctr as metrics_ctr,
+            cem.conversion_rate as metrics_conversion_rate,
+            cem.table_rate as metrics_table_rate,
+            cem.ticket_revenue as metrics_ticket_revenue,
+            cem.table_revenue as metrics_table_revenue,
+            cem.avg_age as metrics_avg_age,
+            cem.gender_ratio as metrics_gender_ratio,
+            cem.english_ratio as metrics_english_ratio,
+            cem.spanish_ratio as metrics_spanish_ratio,
+            cem.dutch_ratio as metrics_dutch_ratio
         FROM base_event_data bed
         LEFT JOIN completed_event_metrics cem ON bed.event_id = cem.event_id;
         """
         
         events = await conn.fetch(events_query, organizer_id)
-        
-        # Organize events into three categories
+
         completed_events = []
         published_events = []
         unpublished_events = []
         
+        # Process events
         for event in events:
             event_dict = dict(event)
-            # Parse the JSONB djs array
             try:
                 djs = json.loads(event_dict["djs"]) if event_dict.get("djs") else []
             except (TypeError, json.JSONDecodeError):
@@ -808,6 +818,23 @@ async def get_organizer_events(user_id: int):
                 "venue_country": event_dict["venue_country"]
             }
             
+            metrics = None
+            if event_dict.get("metrics_completed_at"):
+                metrics = {
+                    "completed_at": event_dict["metrics_completed_at"],
+                    "fill_ratio": event_dict["metrics_fill_ratio"],
+                    "ctr": event_dict["metrics_ctr"],
+                    "conversion_rate": event_dict["metrics_conversion_rate"],
+                    "table_rate": event_dict["metrics_table_rate"],
+                    "ticket_revenue": event_dict["metrics_ticket_revenue"],
+                    "table_revenue": event_dict["metrics_table_revenue"],
+                    "avg_age": event_dict["metrics_avg_age"],
+                    "gender_ratio": event_dict["metrics_gender_ratio"],
+                    "english_ratio": event_dict["metrics_english_ratio"],
+                    "spanish_ratio": event_dict["metrics_spanish_ratio"],
+                    "dutch_ratio": event_dict["metrics_dutch_ratio"]
+                }
+            
             event_info = {
                 "event_id": event_dict["event_id"],
                 "event_name": event_dict["event_name"],
@@ -817,23 +844,17 @@ async def get_organizer_events(user_id: int):
             }
             
             if event_dict.get("completed"):
-                completed_events.append({
-                    **event_info,
-                    "metrics": event_dict.get("metrics")
-                })
+                event_info["metrics"] = metrics
+                event_info["published_at"] = event_dict["published_at"]
+                event_info["event_poster"] = event_dict["event_poster"]
+                event_info["bio"] = event_dict["bio"]
+            
+            if event_dict.get("completed"):
+                completed_events.append(event_info)
             elif event_dict.get("published_at"):
-                published_events.append({
-                    **event_info,
-                    "event_poster": event_dict["event_poster"],
-                    "bio": event_dict["bio"],
-                    "published_at": event_dict["published_at"]
-                })
+                published_events.append(event_info)
             else:
-                unpublished_events.append({
-                    **event_info,
-                    "pre_event_poster": event_dict["pre_event_poster"],
-                    "pre_bio": event_dict["pre_bio"]
-                })
+                unpublished_events.append(event_info)
         
         result = {
             "completed_events": completed_events,

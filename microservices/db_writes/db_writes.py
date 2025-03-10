@@ -29,6 +29,15 @@ SPEND_CLASS_MAP = {0: "A", 1: "B", 2: "C", 3: "D", 4: "E"}
 ROLE_IDS = {"USER": 1, "DJ": 2, "ORGANIZER": 3, "VENUE": 4}
 ROLE_NAMES = {v: k for k, v in ROLE_IDS.items()}
 GENRE_ID_MAP = {0: 4, 1: 2, 2: 1, 3: 5, 4: 3, 5: 6, 6: 7}
+GENRE_MAP = {
+    "HOUSE": 1,
+    "EDM": 2,
+    "REGGAETON": 3,
+    "DNB": 4,
+    "TECHNO": 5,
+    "AFRO_HOUSE": 6,
+    "DEEP_HOUSE": 7
+}
 VENUE_TYPE_MAP = {
     "nightclub": 1,
     "warehouse": 2,
@@ -61,7 +70,7 @@ def db_query(query: str, *params):
             cursor.execute(query, params)
             conn.commit()
             result = cursor.fetchone()
-            print("Data inserted successfully.")
+            print(f"Data inserted successfully. {result}")
     
     except psycopg2.errors.DatabaseError as dbError:
         print(f"Database Error: \n{dbError}")
@@ -133,6 +142,8 @@ def create_user_with_role(cursor, user_data, username_override=None, location_ov
 
 
 class WriteService(write_service_pb2_grpc.WriteServiceServicer):    
+
+
     def CreateEvent(self, request, context):
         print(f"\nReceived data: {request.data}")
         try:
@@ -140,37 +151,81 @@ class WriteService(write_service_pb2_grpc.WriteServiceServicer):
             datetime = datetime.replace(tzinfo=timezone.utc)
             postgre_datetime = datetime.isoformat()
 
+            # Check if genres are provided
+            if not request.data.genres:
+                return write_service_pb2.CreateEntityResponse(
+                    success=False, 
+                    message="At least one genre must be specified."
+                )
+
             org_query = """
                 SELECT id FROM organizer WHERE user_id = %s;
             """
-            organizer_id = db_query(org_query, request.data.org_id) # This is actually user_id but can't be asked to change proto
+            organizer_id = db_query(org_query, request.data.org_id)
             
             if not organizer_id:
-                return write_service_pb2.CreateEntityResponse(success=False, message="Organizer not found.")
-            
-            # print(org_result[0])
-            # organizer_id = org_result[0]
+                return write_service_pb2.CreateEntityResponse(
+                    success=False, 
+                    message="Organizer not found."
+                )
 
-            query = """
-                INSERT INTO event_data (organizer_id, venue_id, event_name, date, budget, pre_event_poster, pre_bio)
-                VALUES (%s, %s, %s, %s, %s, %s, %s) RETURNING id;
-            """
-            values = (
-                organizer_id,
-                request.data.venue_id,
-                request.data.name,
-                postgre_datetime,
-                request.data.budget,
-                request.data.pre_event_poster,
-                request.data.pre_bio
-            )
-            if db_query(query, *values) is None:
-                return write_service_pb2.CreateEntityResponse(success=False, message=f"DB Error: {err_msg}")
+            # Start a transaction
+            conn = pool.getconn()
+            cur = conn.cursor()
+            try:
+                # Insert event
+                event_query = """
+                    INSERT INTO event_data (organizer_id, venue_id, event_name, date, budget, pre_event_poster, pre_bio)
+                    VALUES (%s, %s, %s, %s, %s, %s, %s) RETURNING id;
+                """
+                event_values = (
+                    organizer_id,
+                    request.data.venue_id,
+                    request.data.name,
+                    postgre_datetime,
+                    request.data.budget,
+                    request.data.pre_event_poster,
+                    request.data.pre_bio
+                )
+                print(cur.mogrify(event_query, event_values).decode())
 
-            return write_service_pb2.CreateEntityResponse(success=True, message="Event created!")
+                cur.execute(event_query, event_values)
+                event_id = cur.fetchone()[0]
+
+                # Insert genres
+                genre_query = """
+                    INSERT INTO event_genres (event_id, genre_id)
+                    VALUES (%s, %s);
+                """
+                for genre in request.data.genres:
+                    genre_id = GENRE_MAP.get(genre)
+
+                    # genre_id = self.GENRE_MAP[Genre.Name(genre)]
+                    cur.execute(genre_query, (event_id, genre_id))
+
+                conn.commit()
+                return write_service_pb2.CreateEntityResponse(
+                    success=True, 
+                    message="Event and genres created successfully!"
+                )
+
+            except Exception as e:
+                conn.rollback()
+                print(f"Transaction failed: {e}")
+                return write_service_pb2.CreateEntityResponse(
+                    success=False, 
+                    message=f"Transaction failed: {e}"
+                )
+            finally:
+                cur.close()
+                pool.putconn(conn)
+
         except Exception as e:
             print(f"Exception during writing: {e}")
-            return write_service_pb2.CreateEntityResponse(success=False, message=f"Exception during writing: {e}")
+            return write_service_pb2.CreateEntityResponse(
+                success=False, 
+                message=f"Exception during writing: {e}"
+            )
     
     def CreateUser(self, request, context):
         print(f"Received data: {request}")
