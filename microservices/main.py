@@ -443,12 +443,12 @@ async def proxy_get_djs():
 
 @app.get("/venues")
 async def proxy_get_venues(
-    # current_user: dict = Depends(get_current_user)
+    current_user: dict = Depends(get_current_user)
 ):
     """Proxy request for getting all venues grouped by country. Private endpoint."""
     async with httpx.AsyncClient() as client:
         try:
-            # print(f"Current user: {current_user}")
+            print(f"Current user: {current_user}")
             response = await client.get(f"{DB_READER_SERVICE_URL}/venues", timeout=30.0)
             
             if response.status_code == 404:

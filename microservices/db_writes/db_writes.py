@@ -81,7 +81,7 @@ def db_query(query: str, *params):
     finally:
         pool.putconn(conn)
         print("Connection returned to pool.\n")
-    return result[0] or 1
+        return result[0]
 
 
 def create_user_with_role(cursor, user_data, username_override=None, location_override=None, role_id=None) -> int:
@@ -140,12 +140,23 @@ class WriteService(write_service_pb2_grpc.WriteServiceServicer):
             datetime = datetime.replace(tzinfo=timezone.utc)
             postgre_datetime = datetime.isoformat()
 
+            org_query = """
+                SELECT id FROM organizer WHERE user_id = %s;
+            """
+            organizer_id = db_query(org_query, request.data.org_id) # This is actually user_id but can't be asked to change proto
+            
+            if not organizer_id:
+                return write_service_pb2.CreateEntityResponse(success=False, message="Organizer not found.")
+            
+            # print(org_result[0])
+            # organizer_id = org_result[0]
+
             query = """
                 INSERT INTO event_data (organizer_id, venue_id, event_name, date, budget, pre_event_poster, pre_bio)
                 VALUES (%s, %s, %s, %s, %s, %s, %s) RETURNING id;
             """
             values = (
-                request.data.org_id,
+                organizer_id,
                 request.data.venue_id,
                 request.data.name,
                 postgre_datetime,

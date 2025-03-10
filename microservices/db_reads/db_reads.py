@@ -172,6 +172,7 @@ async def get_venues():
     """Fetch all venues grouped by country."""
     query = """
     SELECT 
+        id,
         name,
         capacity,
         address,
@@ -200,6 +201,7 @@ async def get_venues():
                 grouped_venues[country] = []
                 
             grouped_venues[country].append({
+                "id": venue_dict["id"],
                 "name": venue_dict["name"],
                 "capacity": venue_dict["capacity"],
                 "address": venue_dict["address"],
