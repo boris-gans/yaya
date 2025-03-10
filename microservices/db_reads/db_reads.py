@@ -167,6 +167,55 @@ async def get_djs():
     """
     return StreamingResponse(stream_query(query), media_type="application/json")
 
+@app.get("/venues")
+async def get_venues():
+    """Fetch all venues grouped by country."""
+    query = """
+    SELECT 
+        name,
+        capacity,
+        address,
+        city,
+        state,
+        zip,
+        country,
+        table_count,
+        created_at,
+        completed_events_count
+    FROM venues
+    ORDER BY country;
+    """
+    
+    pool = await db.get_connection()
+    async with pool.acquire() as conn:
+        venues = await conn.fetch(query)
+        
+        # Group venues by country
+        grouped_venues = {}
+        for venue in venues:
+            venue_dict = dict(venue)
+            country = venue_dict['country']
+            
+            if country not in grouped_venues:
+                grouped_venues[country] = []
+                
+            grouped_venues[country].append({
+                "name": venue_dict["name"],
+                "capacity": venue_dict["capacity"],
+                "address": venue_dict["address"],
+                "city": venue_dict["city"],
+                "state": venue_dict["state"],
+                "zip": venue_dict["zip"],
+                "country": venue_dict["country"],
+                "table_count": venue_dict["table_count"],
+                "created_at": venue_dict["created_at"],
+                "completed_events_count": venue_dict["completed_events_count"]
+            })
+        
+        print(f"Fetched venues grouped by country: {grouped_venues}")
+        json_str = json.dumps(grouped_venues, cls=CustomJSONEncoder)
+        return JSONResponse(content=json.loads(json_str))
+
 # --------------- Direct Proxy Endpoints ----------------
 @app.get("/event/{event_id}")
 async def get_event_details(event_id: int):

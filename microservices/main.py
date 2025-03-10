@@ -204,24 +204,31 @@ def rotate_keys():
     # print(f"New secret key: {SECRET_KEYS['current']}")
 
 def create_jwt(data: dict, expires_delta: Optional[timedelta] = None):
-    to_encode = {
+    # Only include these specific fields in the encoded data
+    to_encode_data = {
         'id': data['id'],
         'username': data['username'],
-        'role_id': data.get('role_id')  # Add role_id to JWT
+        'role_id': data.get('role_id'),
+        'location': data.get('location'),
+        'language': data.get('language')
     }
-    bytes = base64.b64encode(json.dumps(data).encode('utf-8')).decode('utf-8')
-
-    if expires_delta:
-        to_encode["exp"] = int((datetime.now(timezone.utc) + expires_delta).timestamp())
-    else:
-        to_encode["exp"] = int((datetime.now(timezone.utc) + timedelta(minutes=ACCESS_TOKEN_EXPIRE_MINUTES)).timestamp())
     
-    to_encode['data'] = bytes
+    # Create the JWT payload with only exp and the encoded data
+    jwt_payload = {}
+    
+    if expires_delta:
+        jwt_payload["exp"] = int((datetime.now(timezone.utc) + expires_delta).timestamp())
+    else:
+        jwt_payload["exp"] = int((datetime.now(timezone.utc) + timedelta(minutes=ACCESS_TOKEN_EXPIRE_MINUTES)).timestamp())
+    
+    # Encode only the specified fields
+    bytes = base64.b64encode(json.dumps(to_encode_data).encode('utf-8')).decode('utf-8')
+    jwt_payload['data'] = bytes
 
-    print(f"Creating jwt with: {to_encode}")
-    print(f"Encoding: {bytes}")
+    print(f"Creating jwt with: {jwt_payload}")
+    print(f"Encoded data: {to_encode_data}")
 
-    return jwt.encode(to_encode, SECRET_KEY, algorithm=ALGORITHM)
+    return jwt.encode(jwt_payload, SECRET_KEY, algorithm=ALGORITHM)
 
 def create_refresh_token(data: dict):
     expire = int((datetime.now(timezone.utc) + timedelta(days=REFRESH_TOKEN_EXPIRE_DAYS)).timestamp())
@@ -434,6 +441,24 @@ async def proxy_get_djs():
         except httpx.HTTPError as e:
             raise HTTPException(status_code=500, detail=str(e))
 
+@app.get("/venues")
+async def proxy_get_venues(
+    # current_user: dict = Depends(get_current_user)
+):
+    """Proxy request for getting all venues grouped by country. Private endpoint."""
+    async with httpx.AsyncClient() as client:
+        try:
+            # print(f"Current user: {current_user}")
+            response = await client.get(f"{DB_READER_SERVICE_URL}/venues", timeout=30.0)
+            
+            if response.status_code == 404:
+                raise HTTPException(status_code=404, detail="Venues not found")
+            
+            return JSONResponse(content=response.json())
+            
+        except httpx.HTTPError as e:
+            raise HTTPException(status_code=500, detail=str(e))
+
 
 # ----------- Direct Proxy Read Endpoints ---------------
 @app.get("/event/{event_id}")
@@ -587,6 +612,7 @@ async def get_user_events(
             if response.status_code == 404:
                 raise HTTPException(status_code=404, detail="Events not found")
             
+            print(f"Events: {response.json()}")
             return JSONResponse(content=response.json())
             
         except httpx.HTTPError as e:
