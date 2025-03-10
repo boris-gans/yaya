@@ -478,6 +478,7 @@ async def get_user_profile(
     """Proxy request for getting user profile data. Private endpoint."""
     async with httpx.AsyncClient() as client:
         try:
+            print(current_user)
             user_id = current_user.get('id')
             response = await client.get(
                 f"{DB_READER_SERVICE_URL}/profile/{user_id}",
@@ -579,13 +580,14 @@ def protected(token: str):
 
 @app.get("/events/{user_id}")
 async def get_user_events(
-    user_id: int,
     current_user: dict = Depends(get_current_user)
 ):
     """Proxy request for getting user's events based on their role."""
     async with httpx.AsyncClient() as client:
         try:
             # role_id = 3
+            print(current_user)
+            user_id = current_user.get('id')
             role_id = current_user.get('role_id')
             if not role_id:
                 raise HTTPException(status_code=400, detail="User role not found")
