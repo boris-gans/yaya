@@ -69,6 +69,11 @@ class WriteServiceStub(object):
                 request_serializer=write__service__pb2.CreateDjEventRequest.SerializeToString,
                 response_deserializer=write__service__pb2.CreateEntityResponse.FromString,
                 _registered_method=True)
+        self.DeleteEvent = channel.unary_unary(
+                '/WriteService/DeleteEvent',
+                request_serializer=write__service__pb2.DeleteEventRequest.SerializeToString,
+                response_deserializer=write__service__pb2.CreateEntityResponse.FromString,
+                _registered_method=True)
 
 
 class WriteServiceServicer(object):
@@ -116,6 +121,12 @@ class WriteServiceServicer(object):
         context.set_details('Method not implemented!')
         raise NotImplementedError('Method not implemented!')
 
+    def DeleteEvent(self, request, context):
+        """Missing associated documentation comment in .proto file."""
+        context.set_code(grpc.StatusCode.UNIMPLEMENTED)
+        context.set_details('Method not implemented!')
+        raise NotImplementedError('Method not implemented!')
+
 
 def add_WriteServiceServicer_to_server(servicer, server):
     rpc_method_handlers = {
@@ -152,6 +163,11 @@ def add_WriteServiceServicer_to_server(servicer, server):
             'AddDjEvent': grpc.unary_unary_rpc_method_handler(
                     servicer.AddDjEvent,
                     request_deserializer=write__service__pb2.CreateDjEventRequest.FromString,
+                    response_serializer=write__service__pb2.CreateEntityResponse.SerializeToString,
+            ),
+            'DeleteEvent': grpc.unary_unary_rpc_method_handler(
+                    servicer.DeleteEvent,
+                    request_deserializer=write__service__pb2.DeleteEventRequest.FromString,
                     response_serializer=write__service__pb2.CreateEntityResponse.SerializeToString,
             ),
     }
@@ -343,6 +359,33 @@ class WriteService(object):
             target,
             '/WriteService/AddDjEvent',
             write__service__pb2.CreateDjEventRequest.SerializeToString,
+            write__service__pb2.CreateEntityResponse.FromString,
+            options,
+            channel_credentials,
+            insecure,
+            call_credentials,
+            compression,
+            wait_for_ready,
+            timeout,
+            metadata,
+            _registered_method=True)
+
+    @staticmethod
+    def DeleteEvent(request,
+            target,
+            options=(),
+            channel_credentials=None,
+            call_credentials=None,
+            insecure=False,
+            compression=None,
+            wait_for_ready=None,
+            timeout=None,
+            metadata=None):
+        return grpc.experimental.unary_unary(
+            request,
+            target,
+            '/WriteService/DeleteEvent',
+            write__service__pb2.DeleteEventRequest.SerializeToString,
             write__service__pb2.CreateEntityResponse.FromString,
             options,
             channel_credentials,

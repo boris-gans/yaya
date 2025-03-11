@@ -532,6 +532,91 @@ class WriteService(write_service_pb2_grpc.WriteServiceServicer):
         except Exception as e:
             print(f"Exception during writing: {e}")
             return write_service_pb2.CreateEntityResponse(success=False, message=f"Exception during writing: {e}")
+    
+    def DeleteEvent(self, request, context):
+        print(f"Received data: {request.data}")
+        try:
+            # Get a connection and start transaction
+            conn = pool.getconn()
+            cur = conn.cursor()
+            
+            try:
+                # First check if event exists and belongs to this organizer
+                verify_query = """
+                    SELECT EXISTS (
+                        SELECT 1 
+                        FROM event_data 
+                        WHERE id = %s AND organizer_id = %s
+                    );
+                """
+                cur.execute(verify_query, (request.data.event_id, request.data.organizer_id))
+                event_exists = cur.fetchone()[0]
+                
+                if not event_exists:
+                    conn.rollback()
+                    return write_service_pb2.CreateEntityResponse(
+                        success=False, 
+                        message="Event not found or does not belong to this organizer"
+                    )
+
+                # Check if event is published
+                published_check = """
+                    SELECT EXISTS (
+                        SELECT 1 
+                        FROM published_events 
+                        WHERE event_id = %s
+                    );
+                """
+                cur.execute(published_check, (request.data.event_id,))
+                is_published = cur.fetchone()[0]
+                
+                if is_published:
+                    conn.rollback()
+                    return write_service_pb2.CreateEntityResponse(
+                        success=False, 
+                        message="Cannot delete a published event"
+                    )
+
+                # Delete from event_dj first (foreign key constraint)
+                delete_djs = """
+                    DELETE FROM event_dj 
+                    WHERE event_id = %s;
+                """
+                cur.execute(delete_djs, (request.data.event_id,))
+
+                # Finally delete the event itself
+                delete_event = """
+                    DELETE FROM event_data 
+                    WHERE id = %s AND organizer_id = %s;
+                """
+                cur.execute(delete_event, (request.data.event_id, request.data.organizer_id))
+
+                # Commit the transaction
+                conn.commit()
+                return write_service_pb2.CreateEntityResponse(
+                    success=True, 
+                    message="Event successfully deleted"
+                )
+
+            except Exception as e:
+                conn.rollback()
+                print(f"Transaction failed: {e}")
+                return write_service_pb2.CreateEntityResponse(
+                    success=False, 
+                    message=f"Transaction failed: {e}"
+                )
+            finally:
+                cur.close()
+                pool.putconn(conn)
+
+        except Exception as e:
+            print(f"Exception during deletion: {e}")
+            return write_service_pb2.CreateEntityResponse(
+                success=False, 
+                message=f"Exception during deletion: {e}"
+            )
+
+
 
 # Run gRPC Server
 def serve():

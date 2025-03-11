@@ -184,9 +184,7 @@ public_handlers = {
     "venue": handle_venue,
     "user": handle_user,
     "dj": handle_dj,
-    "org": handle_org,
-    
-    
+    "org": handle_org, 
 }
 
 
