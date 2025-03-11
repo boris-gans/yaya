@@ -427,7 +427,6 @@ async def proxy_get_events():
                 # Process the stream line by line
                 async for line in response.aiter_lines():
                     if line.strip():  # Skip empty lines
-                        print(f"Line: {line}\n")
                         yield line + "\n"
 
             return StreamingResponse(
