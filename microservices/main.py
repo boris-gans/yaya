@@ -166,15 +166,27 @@ def handle_dj_event(data):
     response = grpc_stub.AddDjEvent(request)
     return {"Success": response.success, "Message": response.message}
 
-type_handlers = {
+def handle_event_delete(data):
+    print(f"Sync data: {data}")
+
+    request = write_service_pb2.DeleteEventRequest(data=data)
+    response = grpc_stub.DeleteEvent(request)
+    return {"Success": response.success, "Message": response.message}
+
+private_handlers = {
+    "event": handle_event,
+    "publish_event": handle_publish,
+    "dj_event": handle_dj_event,
+    "delete_event": handle_event_delete
+}
+
+public_handlers = {
     "venue": handle_venue,
     "user": handle_user,
     "dj": handle_dj,
     "org": handle_org,
     
-    "event": handle_event,
-    "publish_event": handle_publish,
-    "dj_event": handle_dj_event
+    
 }
 
 
@@ -354,11 +366,12 @@ async def essential_write_register(data: dict = Body(...)):
     Handles entity creation/registration (users, DJs, venues, organizers).
     No authentication required.
     """
+
     obj_type = data.get("type")
     obj_data = data.get("data")
     print(obj_data)
     
-    handler = type_handlers.get(obj_type, lambda x: {"error": f"Unknown type: {obj_type}"})  
+    handler = public_handlers.get(obj_type, lambda x: {"error": f"Unknown type: {obj_type}"})  
     response = handler(obj_data)
     print(response)
     if response.get('Success') == 'false':
@@ -374,11 +387,12 @@ async def essential_write_modify(
     Handles modifications to existing entities.
     Requires JWT authentication.
     """
+
     obj_type = data.get("type")
     obj_data = data.get("data")
     
     print(f"\nUser {current_user['id']} modifying DB with operation: {obj_type}")
-    handler = type_handlers.get(obj_type, lambda x: {"error": f"Unknown type: {obj_type}"})  
+    handler = private_handlers.get(obj_type, lambda x: {"error": f"Unknown type: {obj_type}"})  
     return handler(obj_data)
 
 @app.post("/background_write/")

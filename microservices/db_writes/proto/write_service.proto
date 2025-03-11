@@ -157,6 +157,15 @@ message CreateDjEventRequest {
   DjEventData data = 1;
 }
 
+message DeleteEvent {
+  int32 event_id = 1;
+  int32 organizer_id = 2;
+}
+
+message DeleteEventRequest {
+  DeleteEvent data = 1;
+}
+
 service WriteService {
   rpc CreateEvent(CreateEventRequest) returns (CreateEntityResponse);
   rpc CreateUser(CreateUserRequest) returns (CreateEntityResponse);
