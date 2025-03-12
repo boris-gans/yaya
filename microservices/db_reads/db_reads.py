@@ -222,19 +222,77 @@ async def get_venues():
 @app.get("/event/{event_id}")
 async def get_event_details(event_id: int):
     """Fetch detailed event info including venue & organizer."""
-
     query = """
-    SELECT pe.*, v.*, o.*
-    FROM event_data pe
-    LEFT JOIN venues v ON pe.venue_id = v.id
-    LEFT JOIN organizer o ON pe.organizer_id = o.id
-    WHERE pe.id = $1
+    SELECT 
+        e.id as event_id,
+        e.event_name,
+        e.date,
+        e.genre_dist,
+        v.id as venue_id,
+        v.name as venue_name,
+        v.capacity,
+        v.address,
+        v.city,
+        v.state,
+        v.zip,
+        v.country,
+        v.type_distribution,
+        o.id as organizer_id,
+        o.name as organizer_name,
+        o.website as organizer_website,
+        pe.sold_out,
+        pe.event_poster,
+        pe.bio,
+        pe.published_at
+    FROM event_data e
+    JOIN venues v ON e.venue_id = v.id
+    JOIN organizer o ON e.organizer_id = o.id
+    JOIN published_events pe ON e.id = pe.event_id
+    WHERE e.id = $1;
     """
+    
     pool = await db.get_connection()
-    result = await pool.fetchrow(query, event_id)
-    if not result:
-        return JSONResponse({"error": "Event not found"}, status_code=404)
-    return dict(result)
+    async with pool.acquire() as conn:
+        result = await conn.fetchrow(query, event_id)
+        if not result:
+            return JSONResponse({"error": "Event not found"}, status_code=404)
+        
+        # Convert to dict and parse JSONB fields
+        event_dict = dict(result)
+        
+        # Structure the response
+        response = {
+            "event_id": event_dict["event_id"],
+            "event_name": event_dict["event_name"],
+            "date": event_dict["date"],
+            "genre_dist": json.loads(event_dict["genre_dist"]) if event_dict["genre_dist"] else None,
+            "venue": {
+                "venue_id": event_dict["venue_id"],
+                "name": event_dict["venue_name"],
+                "capacity": event_dict["capacity"],
+                "address": event_dict["address"],
+                "city": event_dict["city"],
+                "state": event_dict["state"],
+                "zip": event_dict["zip"],
+                "country": event_dict["country"],
+                "type_distribution": json.loads(event_dict["type_distribution"]) if event_dict["type_distribution"] else None
+            },
+            "organizer": {
+                "organizer_id": event_dict["organizer_id"],
+                "name": event_dict["organizer_name"],
+                "website": event_dict["organizer_website"]
+            },
+            "published": {
+                "sold_out": event_dict["sold_out"],
+                "event_poster": event_dict["event_poster"],
+                "bio": event_dict["bio"],
+                "published_at": event_dict["published_at"]
+            }
+        }
+        
+        print(f"Event details for event {event_id}: {response}")
+        json_str = json.dumps(response, cls=CustomJSONEncoder)
+        return JSONResponse(content=json.loads(json_str))
     
 @app.get("/user_recommendation_data/{user_id}")
 async def get_user_recommendation_data(user_id: int) -> Dict:

@@ -391,7 +391,11 @@ async def essential_write_modify(
     
     print(f"\nUser {current_user['id']} modifying DB with operation: {obj_type}")
     handler = private_handlers.get(obj_type, lambda x: {"error": f"Unknown type: {obj_type}"})  
-    return handler(obj_data)
+    response = handler(obj_data)
+    print(response)
+    if response.get('Success') == 'false':
+        raise HTTPException(status_code=500, detail=response.get('Message'))
+    return response
 
 @app.post("/background_write/")
 async def background_write(data: dict):
