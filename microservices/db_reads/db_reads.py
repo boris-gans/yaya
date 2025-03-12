@@ -762,7 +762,7 @@ async def get_venue_events(user_id: int):
         events_query = """
         WITH base_event_data AS (
             SELECT 
-                e.id as event_id,
+                e.id as event_id_,
                 e.event_name,
                 e.date,
                 e.pre_event_poster,
@@ -797,10 +797,11 @@ async def get_venue_events(user_id: int):
             bed.*,
             cem.* as metrics
         FROM base_event_data bed
-        LEFT JOIN completed_event_metrics cem ON bed.event_id = cem.event_id;
+        LEFT JOIN completed_event_metrics cem ON bed.event_id_ = cem.event_id;
         """
         
         events = await conn.fetch(events_query, venue_id)
+        print(events)
         
         # Organize events into three categories
         completed_events = []
@@ -813,17 +814,23 @@ async def get_venue_events(user_id: int):
                 djs = json.loads(event_dict["djs"]) if event_dict.get("djs") else []
             except (TypeError, json.JSONDecodeError):
                 djs = []
+
             
-            event_info = {
-                "event_id": event_dict["event_id"],
-                "event_name": event_dict["event_name"],
-                "date": event_dict["date"],
+            venue_info = {
+                "venue_id": venue_details["id"],
                 "venue_name": venue_details["venue_name"],
                 "venue_address": venue_details["venue_address"],
                 "venue_city": venue_details["venue_city"],
                 "venue_state": venue_details["venue_state"],
                 "venue_zip": venue_details["venue_zip"],
-                "venue_country": venue_details["venue_country"],
+                "venue_country": venue_details["venue_country"]
+            }
+            
+            event_info = {
+                "event_id": event_dict["event_id_"],
+                "event_name": event_dict["event_name"],
+                "date": event_dict["date"],
+                "venue": venue_info,
                 "organizer": {
                     "organizer_id": event_dict["organizer_id"],
                     "organizer_name": event_dict["organizer_name"]
