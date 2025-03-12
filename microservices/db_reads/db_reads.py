@@ -142,6 +142,7 @@ async def get_djs():
     """Stream all DJs with their socials and genres."""
     query = """
     SELECT 
+        d.id AS dj_id,
         d.alias,
         d.first_name,
         d.last_name,
@@ -221,7 +222,7 @@ async def get_venues():
 # --------------- Direct Proxy Endpoints ----------------
 @app.get("/event/{event_id}")
 async def get_event_details(event_id: int):
-    """Fetch detailed event info including venue & organizer, for both published and unpublished events."""
+    """Fetch detailed event info including venue, organizer, and DJs."""
     query = """
     SELECT 
         e.id as event_id,
@@ -249,7 +250,38 @@ async def get_event_details(event_id: int):
         CASE 
             WHEN pe.event_id IS NOT NULL THEN 'Published'
             ELSE 'Pending'
-        END as status
+        END as status,
+        (
+            SELECT jsonb_agg(dj_info)
+            FROM (
+                SELECT 
+                    d.id AS dj_id,
+                    d.alias,
+                    d.first_name,
+                    d.last_name,
+                    d.bio,
+                    d.location,
+                    d.interested_count,
+                    d.created_at,
+                    ds.website,
+                    ds.soundcloud,
+                    ds.spotify,
+                    ds.facebook,
+                    ds.instagram,
+                    ds.snapchat,
+                    ds.x,
+                    (
+                        SELECT array_agg(g.name)
+                        FROM dj_genres dg
+                        JOIN genres g ON dg.genre_id = g.id
+                        WHERE dg.dj_id = d.id
+                    ) as genres
+                FROM event_dj ed
+                JOIN dj d ON ed.dj_id = d.id
+                LEFT JOIN dj_socials ds ON d.id = ds.dj_id
+                WHERE ed.event_id = e.id
+            ) dj_info
+        ) as djs
     FROM event_data e
     JOIN venues v ON e.venue_id = v.id
     JOIN organizer o ON e.organizer_id = o.id
@@ -288,16 +320,16 @@ async def get_event_details(event_id: int):
                 "organizer_id": event_dict["organizer_id"],
                 "name": event_dict["organizer_name"],
                 "website": event_dict["organizer_website"]
-            }
+            },
+            "djs": json.loads(event_dict["djs"]) if event_dict["djs"] else []
         }
 
-        # Add pre-publication data if event is not published
+        # Add appropriate event data based on status
         if event_dict["status"] == "Pending":
             response["unpublished"] = {
                 "pre_event_poster": event_dict["pre_event_poster"],
                 "pre_bio": event_dict["pre_bio"]
             }
-        # Add published data if event is published
         else:
             response["published"] = {
                 "sold_out": event_dict["sold_out"],
@@ -660,6 +692,8 @@ async def get_dj_events(user_id: int):
                     "date": event_dict["date"],
                     "venue": venue_info,
                     "organizer": organizer_info,
+                    "event_poster": event_dict["event_poster"] or event_dict["pre_event_poster"],
+                    "bio": event_dict["bio"] or event_dict["pre_bio"],
                     "metrics": event_dict.get("metrics"),
                     "status": event_dict["status"]
                 })
@@ -670,8 +704,8 @@ async def get_dj_events(user_id: int):
                     "date": event_dict["date"],
                     "venue": venue_info,
                     "organizer": organizer_info,
-                    "event_poster": event_dict["event_poster"],
-                    "bio": event_dict["bio"],
+                    "event_poster": event_dict["event_poster"] or event_dict["pre_event_poster"],
+                    "bio": event_dict["bio"] or event_dict["pre_bio"],
                     "published_at": event_dict["published_at"],
                     "status": event_dict["status"]
                 })
@@ -682,8 +716,8 @@ async def get_dj_events(user_id: int):
                     "date": event_dict["date"],
                     "venue": venue_info,
                     "organizer": organizer_info,
-                    "pre_event_poster": event_dict["pre_event_poster"],
-                    "pre_bio": event_dict["pre_bio"],
+                    "event_poster": event_dict["pre_event_poster"],
+                    "bio": event_dict["pre_bio"],
                     "status": event_dict["status"]
                 })
         
@@ -785,20 +819,22 @@ async def get_venue_events(user_id: int):
             if event_dict.get("completed"):
                 completed_events.append({
                     **event_info,
+                    "event_poster": event_dict["event_poster"] or event_dict["pre_event_poster"],
+                    "bio": event_dict["bio"] or event_dict["pre_bio"],
                     "metrics": event_dict.get("metrics")
                 })
             elif event_dict.get("published_at"):
                 published_events.append({
                     **event_info,
-                    "event_poster": event_dict["event_poster"],
-                    "bio": event_dict["bio"],
+                    "event_poster": event_dict["event_poster"] or event_dict["pre_event_poster"],
+                    "bio": event_dict["bio"] or event_dict["pre_bio"],
                     "published_at": event_dict["published_at"]
                 })
             else:
                 unpublished_events.append({
                     **event_info,
-                    "pre_event_poster": event_dict["pre_event_poster"],
-                    "pre_bio": event_dict["pre_bio"]
+                    "event_poster": event_dict["pre_event_poster"],
+                    "bio": event_dict["pre_bio"]
                 })
         
         result = {
@@ -931,18 +967,14 @@ async def get_organizer_events(user_id: int):
                 "date": event_dict["date"],
                 "venue": venue_info,
                 "djs": djs,
-                "status": event_dict["status"]
+                "status": event_dict["status"],
+                "event_poster": (event_dict["event_poster"] or event_dict["pre_event_poster"]) if event_dict["status"] == "Published" else event_dict["pre_event_poster"],
+                "bio": (event_dict["bio"] or event_dict["pre_bio"]) if event_dict["status"] == "Published" else event_dict["pre_bio"]
             }
-            if event_dict["status"] == 'Pending':
-                event_info['event_poster'] = event_dict["pre_event_poster"]
-                event_info['bio'] = event_dict["pre_bio"]
-
             
             if event_dict.get("completed"):
                 event_info["metrics"] = metrics
                 event_info["published_at"] = event_dict["published_at"]
-                event_info["event_poster"] = event_dict["event_poster"]
-                event_info["bio"] = event_dict["bio"]
             
             if event_dict.get("completed"):
                 completed_events.append(event_info)
