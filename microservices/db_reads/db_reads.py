@@ -118,6 +118,7 @@ async def get_events():
             v.state as venue_state,
             v.zip as venue_zip,
             v.country as venue_country,
+            v.capacity as venue_capacity,
             o.name as organizer_name,
             (
                 SELECT array_agg(g.name)
@@ -737,15 +738,25 @@ async def get_venue_events(user_id: int):
     """Fetch events specific to a venue with three different categories."""
     pool = await db.get_connection()
     async with pool.acquire() as conn:
-        # First get the venue's ID
+        # First get the venue's ID and details
         venue_query = """
-        SELECT id FROM venues WHERE user_id = $1;
+        SELECT 
+            id,
+            name as venue_name,
+            address as venue_address,
+            city as venue_city,
+            state as venue_state,
+            zip as venue_zip,
+            country as venue_country
+        FROM venues 
+        WHERE user_id = $1;
         """
         venue_result = await conn.fetchrow(venue_query, user_id)
         if not venue_result:
             return JSONResponse({"error": "Venue not found"}, status_code=404)
         
         venue_id = venue_result['id']
+        venue_details = dict(venue_result)
         
         # Get all events for this venue
         events_query = """
@@ -798,7 +809,6 @@ async def get_venue_events(user_id: int):
         
         for event in events:
             event_dict = dict(event)
-            # Parse the JSONB djs array
             try:
                 djs = json.loads(event_dict["djs"]) if event_dict.get("djs") else []
             except (TypeError, json.JSONDecodeError):
@@ -808,6 +818,12 @@ async def get_venue_events(user_id: int):
                 "event_id": event_dict["event_id"],
                 "event_name": event_dict["event_name"],
                 "date": event_dict["date"],
+                "venue_name": venue_details["venue_name"],
+                "venue_address": venue_details["venue_address"],
+                "venue_city": venue_details["venue_city"],
+                "venue_state": venue_details["venue_state"],
+                "venue_zip": venue_details["venue_zip"],
+                "venue_country": venue_details["venue_country"],
                 "organizer": {
                     "organizer_id": event_dict["organizer_id"],
                     "organizer_name": event_dict["organizer_name"]

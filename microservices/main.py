@@ -405,7 +405,7 @@ def refresh_access_token(body: dict=Body(...)):
         print(f"Error with verifying refresh token")
         raise HTTPException(status_code=401, detail=payload[1])
 
-    new_access_token = create_jwt(payload)
+    new_access_token = create_jwt(payload[1])
     return {"access_token": new_access_token}
 
 
@@ -658,7 +658,6 @@ async def get_user_events(
     async with httpx.AsyncClient() as client:
         try:
             # role_id = 3
-            print(current_user)
             user_id = current_user.get('id')
             role_id = current_user.get('role_id')
             if not role_id:
