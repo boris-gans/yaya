@@ -215,6 +215,8 @@ def rotate_keys():
 
 def create_jwt(data: dict, expires_delta: Optional[timedelta] = None):
     # Only include these specific fields in the encoded data
+    print(f"Data: {data}")
+
     to_encode_data = {
         'id': data['id'],
         'username': data['username'],
@@ -222,6 +224,8 @@ def create_jwt(data: dict, expires_delta: Optional[timedelta] = None):
         'location': data.get('location'),
         'language': data.get('language')
     }
+    if data.get('role_id') != 1:
+        to_encode_data['other_id'] = data.get('other_id')
     
     # Create the JWT payload with only exp and the encoded data
     jwt_payload = {}
@@ -316,7 +320,55 @@ async def get_current_user_postgres(username_or_email: str, pw: str):
             )
             if not row:
                 raise HTTPException(status_code=401, detail="Invalid credentials")
-            return dict(row)
+            user_data = dict(row)
+
+            if user_data.get('role_id') == 2:
+                dj_id = await conn.fetchrow(
+                    """
+                    SELECT 
+                        id AS other_id
+                    FROM venues
+                    WHERE user_id = $1
+                    """, user_data.get('id')
+                )
+                if not dj_id:
+                    raise HTTPException(status_code=401, detail="Couldn't fetch venue id")
+                added_info = dict(dj_id)
+
+                print(added_info)
+                user_data['other_id'] = added_info.get('other_id')
+            elif user_data.get('role_id') == 3:
+                org_id = await conn.fetchrow(
+                    """
+                    SELECT 
+                        id AS other_id
+                    FROM organizer
+                    WHERE user_id = $1
+                    """, user_data.get('id')
+                )
+                if not org_id:
+                    raise HTTPException(status_code=401, detail="Couldn't fetch venue id")
+                added_info = dict(org_id)
+
+                print(added_info)
+                user_data['other_id'] = added_info.get('other_id')
+            elif user_data.get('role_id') == 4:
+                ven_id = await conn.fetchrow(
+                    """
+                    SELECT 
+                        id AS other_id
+                    FROM venues
+                    WHERE user_id = $1
+                    """, user_data.get('id')
+                )
+                if not ven_id:
+                    raise HTTPException(status_code=401, detail="Couldn't fetch venue id")
+                added_info = dict(ven_id)
+
+                print(added_info)
+                user_data['other_id'] = added_info.get('other_id')
+            
+            return user_data
     except asyncpg.PostgresError as e:
         raise HTTPException(status_code=500, detail=f"Database query error: {str(e)}")
 

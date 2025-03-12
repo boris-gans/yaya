@@ -127,10 +127,10 @@ async def get_events():
             ) as genres,
             pe.event_poster,
             pe.bio
-        FROM event_data e
+        FROM published_events pe
+        JOIN event_data e ON pe.event_id = e.id
         JOIN venues v ON e.venue_id = v.id
         JOIN organizer o ON e.organizer_id = o.id
-        LEFT JOIN published_events pe ON e.id = pe.event_id
     )
     SELECT * FROM base_events;
     """

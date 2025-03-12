@@ -534,6 +534,7 @@ class WriteService(write_service_pb2_grpc.WriteServiceServicer):
             return write_service_pb2.CreateEntityResponse(success=False, message=f"Exception during writing: {e}")
     
     def DeleteEvent(self, request, context):
+        print("Deleting event...\n")
         print(f"Received data: {request.data}")
         try:
             # Get a connection and start transaction
@@ -551,6 +552,7 @@ class WriteService(write_service_pb2_grpc.WriteServiceServicer):
                 """
                 cur.execute(verify_query, (request.data.event_id, request.data.organizer_id))
                 event_exists = cur.fetchone()[0]
+                print(f"Event exists check: {event_exists}")
                 
                 if not event_exists:
                     conn.rollback()
@@ -558,6 +560,13 @@ class WriteService(write_service_pb2_grpc.WriteServiceServicer):
                         success=False, 
                         message="Event not found or does not belong to this organizer"
                     )
+
+                # Debug: Print event details before deletion
+                cur.execute("""
+                    SELECT id, organizer_id FROM event_data WHERE id = %s;
+                """, (request.data.event_id,))
+                event_details = cur.fetchone()
+                print(f"Event details before deletion: {event_details}")
 
                 # Check if event is published
                 published_check = """
@@ -569,6 +578,7 @@ class WriteService(write_service_pb2_grpc.WriteServiceServicer):
                 """
                 cur.execute(published_check, (request.data.event_id,))
                 is_published = cur.fetchone()[0]
+                print(f"Event published check: {is_published}")
                 
                 if is_published:
                     conn.rollback()
@@ -577,25 +587,65 @@ class WriteService(write_service_pb2_grpc.WriteServiceServicer):
                         message="Cannot delete a published event"
                     )
 
+                # Debug: Check for existing DJ relationships
+                cur.execute("""
+                    SELECT COUNT(*) FROM event_dj WHERE event_id = %s;
+                """, (request.data.event_id,))
+                dj_count = cur.fetchone()[0]
+                print(f"Number of DJ relationships to delete: {dj_count}")
+
                 # Delete from event_dj first (foreign key constraint)
                 delete_djs = """
                     DELETE FROM event_dj 
-                    WHERE event_id = %s;
+                    WHERE event_id = %s
+                    RETURNING event_id;
                 """
                 cur.execute(delete_djs, (request.data.event_id,))
+                deleted_djs = cur.fetchall()
+                print(f"Deleted DJ relationships: {deleted_djs}")
 
                 # Finally delete the event itself
                 delete_event = """
                     DELETE FROM event_data 
-                    WHERE id = %s AND organizer_id = %s;
+                    WHERE id = %s AND organizer_id = %s
+                    RETURNING id;
                 """
                 cur.execute(delete_event, (request.data.event_id, request.data.organizer_id))
+                deleted_event = cur.fetchone()
+                print(f"Deleted event result: {deleted_event}")
+
+                # Verify deletion
+                verify_deletion = """
+                    SELECT EXISTS (
+                        SELECT 1 
+                        FROM event_data 
+                        WHERE id = %s
+                    );
+                """
+                cur.execute(verify_deletion, (request.data.event_id,))
+                still_exists = cur.fetchone()[0]
+                
+                if still_exists:
+                    conn.rollback()
+                    print("Event still exists after deletion attempt!")
+                    return write_service_pb2.CreateEntityResponse(
+                        success=False,
+                        message="Failed to delete event: Event still exists after deletion"
+                    )
 
                 # Commit the transaction
                 conn.commit()
+                print("Transaction committed successfully")
+                
+                if not deleted_event:
+                    return write_service_pb2.CreateEntityResponse(
+                        success=False,
+                        message="Event deletion failed: No rows were deleted"
+                    )
+                
                 return write_service_pb2.CreateEntityResponse(
                     success=True, 
-                    message="Event successfully deleted"
+                    message=f"Event {request.data.event_id} successfully deleted"
                 )
 
             except Exception as e:
@@ -603,7 +653,7 @@ class WriteService(write_service_pb2_grpc.WriteServiceServicer):
                 print(f"Transaction failed: {e}")
                 return write_service_pb2.CreateEntityResponse(
                     success=False, 
-                    message=f"Transaction failed: {e}"
+                    message=f"Transaction failed: {str(e)}"
                 )
             finally:
                 cur.close()
@@ -613,7 +663,7 @@ class WriteService(write_service_pb2_grpc.WriteServiceServicer):
             print(f"Exception during deletion: {e}")
             return write_service_pb2.CreateEntityResponse(
                 success=False, 
-                message=f"Exception during deletion: {e}"
+                message=f"Exception during deletion: {str(e)}"
             )
 
 
