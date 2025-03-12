@@ -933,6 +933,10 @@ async def get_organizer_events(user_id: int):
                 "djs": djs,
                 "status": event_dict["status"]
             }
+            if event_dict["status"] == 'Pending':
+                event_info['event_poster'] = event_dict["pre_event_poster"]
+                event_info['bio'] = event_dict["pre_bio"]
+
             
             if event_dict.get("completed"):
                 event_info["metrics"] = metrics
