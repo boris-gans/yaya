@@ -221,13 +221,15 @@ async def get_venues():
 # --------------- Direct Proxy Endpoints ----------------
 @app.get("/event/{event_id}")
 async def get_event_details(event_id: int):
-    """Fetch detailed event info including venue & organizer."""
+    """Fetch detailed event info including venue & organizer, for both published and unpublished events."""
     query = """
     SELECT 
         e.id as event_id,
         e.event_name,
         e.date,
         e.genre_dist,
+        e.pre_event_poster,
+        e.pre_bio,
         v.id as venue_id,
         v.name as venue_name,
         v.capacity,
@@ -243,11 +245,15 @@ async def get_event_details(event_id: int):
         pe.sold_out,
         pe.event_poster,
         pe.bio,
-        pe.published_at
+        pe.published_at,
+        CASE 
+            WHEN pe.event_id IS NOT NULL THEN 'Published'
+            ELSE 'Pending'
+        END as status
     FROM event_data e
     JOIN venues v ON e.venue_id = v.id
     JOIN organizer o ON e.organizer_id = o.id
-    JOIN published_events pe ON e.id = pe.event_id
+    LEFT JOIN published_events pe ON e.id = pe.event_id
     WHERE e.id = $1;
     """
     
@@ -266,6 +272,7 @@ async def get_event_details(event_id: int):
             "event_name": event_dict["event_name"],
             "date": event_dict["date"],
             "genre_dist": json.loads(event_dict["genre_dist"]) if event_dict["genre_dist"] else None,
+            "status": event_dict["status"],
             "venue": {
                 "venue_id": event_dict["venue_id"],
                 "name": event_dict["venue_name"],
@@ -281,14 +288,23 @@ async def get_event_details(event_id: int):
                 "organizer_id": event_dict["organizer_id"],
                 "name": event_dict["organizer_name"],
                 "website": event_dict["organizer_website"]
-            },
-            "published": {
+            }
+        }
+
+        # Add pre-publication data if event is not published
+        if event_dict["status"] == "Pending":
+            response["unpublished"] = {
+                "pre_event_poster": event_dict["pre_event_poster"],
+                "pre_bio": event_dict["pre_bio"]
+            }
+        # Add published data if event is published
+        else:
+            response["published"] = {
                 "sold_out": event_dict["sold_out"],
                 "event_poster": event_dict["event_poster"],
                 "bio": event_dict["bio"],
                 "published_at": event_dict["published_at"]
             }
-        }
         
         print(f"Event details for event {event_id}: {response}")
         json_str = json.dumps(response, cls=CustomJSONEncoder)
