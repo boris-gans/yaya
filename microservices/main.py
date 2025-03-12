@@ -327,7 +327,7 @@ async def get_current_user_postgres(username_or_email: str, pw: str):
                     """
                     SELECT 
                         id AS other_id
-                    FROM venues
+                    FROM dj
                     WHERE user_id = $1
                     """, user_data.get('id')
                 )
@@ -455,7 +455,6 @@ async def background_write(data: dict):
     Endpoint for background message publishing, this will be for non-essential writes such as: num_clicks, num_impressions, etc.
     """
 
-    # print(data.get('data').get('metric_type'))
     if data.get('metric_type') not in [m.value for m in MetricType]:
         raise HTTPException(status_code=400, detail="Invalid metric type")
 
@@ -483,7 +482,15 @@ async def proxy_get_events():
                 # Process the stream line by line
                 async for line in response.aiter_lines():
                     if line.strip():  # Skip empty lines
-                        yield line + "\n"
+                        try:
+                            data = json.loads(line)
+                            event_id = data.get("id")
+                            if event_id:
+                                print(event_id)
+                                await background_write(data={"event_id": event_id, "metric_type": "impression"})
+                            yield line + "\n"
+                        except json.JSONDecodeError:
+                            print(f"Skipping invalid json: {line}")
 
             return StreamingResponse(
                 parse_stream(),
@@ -539,6 +546,8 @@ async def proxy_get_event_details(event_id: int):
     async with httpx.AsyncClient() as client:
         try:
             response = await client.get(f"{DB_READER_SERVICE_URL}/event/{event_id}", timeout=10.0)
+            await background_write(data={"event_id": event_id, "metric_type": "click"})
+
             return JSONResponse(content=response.json(), status_code=response.status_code)
         except httpx.HTTPError as e:
             raise HTTPException(status_code=500, detail=str(e))

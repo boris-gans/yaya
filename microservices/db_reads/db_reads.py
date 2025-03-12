@@ -628,7 +628,7 @@ async def get_dj_events(user_id: int):
         ),
         base_event_data AS (
             SELECT 
-                e.id as event_id,
+                e.id as event_id_,
                 e.event_name,
                 e.date,
                 e.pre_event_poster,
@@ -660,7 +660,7 @@ async def get_dj_events(user_id: int):
             bed.*,
             cem.* as metrics
         FROM base_event_data bed
-        LEFT JOIN completed_event_metrics cem ON bed.event_id = cem.event_id;
+        LEFT JOIN completed_event_metrics cem ON bed.event_id_ = cem.event_id;
         """
         
         events = await conn.fetch(events_query, dj_id)
@@ -688,7 +688,7 @@ async def get_dj_events(user_id: int):
             
             if event_dict.get("completed"):
                 completed_events.append({
-                    "event_id": event_dict["event_id"],
+                    "event_id": event_dict["event_id_"],
                     "event_name": event_dict["event_name"],
                     "date": event_dict["date"],
                     "venue": venue_info,
@@ -700,7 +700,7 @@ async def get_dj_events(user_id: int):
                 })
             elif event_dict.get("published_at"):
                 published_events.append({
-                    "event_id": event_dict["event_id"],
+                    "event_id": event_dict["event_id_"],
                     "event_name": event_dict["event_name"],
                     "date": event_dict["date"],
                     "venue": venue_info,
@@ -712,7 +712,7 @@ async def get_dj_events(user_id: int):
                 })
             else:
                 unpublished_events.append({
-                    "event_id": event_dict["event_id"],
+                    "event_id": event_dict["event_id_"],
                     "event_name": event_dict["event_name"],
                     "date": event_dict["date"],
                     "venue": venue_info,
