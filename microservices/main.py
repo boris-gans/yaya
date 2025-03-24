@@ -197,15 +197,18 @@ async def get_current_user(credentials: HTTPAuthorizationCredentials = Security(
         token = credentials.credentials
         success, payload = decode_jwt(token)
         if not success:
+            print("ACCESS DENIED")
             raise HTTPException(status_code=401, detail=payload)
         
         decoded_data = json.loads(base64.b64decode(payload["data"]).decode("utf-8"))
         if not decoded_data.get('username'):
+            print("ACCESS DENIED")
             raise HTTPException(status_code=401, detail="Invalid authentication token")
         
         # role_id will now be available in the decoded data
         return decoded_data
     except Exception as e:
+        print("ACCESS DENIED")
         raise HTTPException(status_code=401, detail=str(e))
 
 def rotate_keys():
@@ -538,18 +541,22 @@ async def proxy_get_venues():
         except httpx.HTTPError as e:
             raise HTTPException(status_code=500, detail=str(e))
 
-# @app.get("/event/{event_id}")
+@app.get("/event/{event_id}")
 async def proxy_get_event_details(event_id: int):
-    """Proxy request for getting detailed event info (venue & organizer). Private endpoint. TEMPORARY"""
+    """Proxy request for getting detailed event info (venue & organizer). Public endpoint."""
 
     async with httpx.AsyncClient() as client:
         try:
             response = await client.get(f"{DB_READER_SERVICE_URL}/event/{event_id}", timeout=10.0)
             await background_write(data={"event_id": event_id, "metric_type": "click"})
-
+            print(response.json())
             return JSONResponse(content=response.json(), status_code=response.status_code)
         except httpx.HTTPError as e:
             raise HTTPException(status_code=500, detail=str(e))
+
+@app.get("/event/by_entity/{entity_type}/{entity_id}")
+async def proxy_get_events_by_entity(entity_type: int, entity_id: int):
+    print("ddd")
 
 @app.get("/profile/{user_id}")
 async def get_user_profile(
@@ -560,6 +567,8 @@ async def get_user_profile(
         try:
             print(current_user)
             user_id = current_user.get('id')
+            role_id = current_user.get('role_id')
+
             response = await client.get(
                 f"{DB_READER_SERVICE_URL}/profile/{user_id}",
                 timeout=10.0
@@ -571,33 +580,31 @@ async def get_user_profile(
             profile_data = response.json()
             print(f"Profile data: {profile_data}")
 
+            # DO THIS CONCURRENTLY
             # Add role-specific data based on role_id
-            if "role_id" in profile_data:
-                role_id = profile_data["role_id"]
-                
-                if role_id == ROLE_IDS["DJ"]:
-                    dj_response = await client.get(
-                        f"{DB_READER_SERVICE_URL}/dj/{user_id}",
-                        timeout=10.0
-                    )
-                    if dj_response.status_code == 200:
-                        profile_data["dj_data"] = dj_response.json()
-                
-                elif role_id == ROLE_IDS["VENUE"]:
-                    venue_response = await client.get(
-                        f"{DB_READER_SERVICE_URL}/venue/{user_id}",
-                        timeout=10.0
-                    )
-                    if venue_response.status_code == 200:
-                        profile_data["venue_data"] = venue_response.json()
-                
-                elif role_id == ROLE_IDS["ORGANIZER"]:
-                    org_response = await client.get(
-                        f"{DB_READER_SERVICE_URL}/organizer/{user_id}",
-                        timeout=10.0
-                    )
-                    if org_response.status_code == 200:
-                        profile_data["organizer_data"] = org_response.json()
+            if role_id == ROLE_IDS["DJ"]:
+                dj_response = await client.get(
+                    f"{DB_READER_SERVICE_URL}/dj/{user_id}",
+                    timeout=10.0
+                )
+                if dj_response.status_code == 200:
+                    profile_data["dj_data"] = dj_response.json()
+            
+            elif role_id == ROLE_IDS["VENUE"]:
+                venue_response = await client.get(
+                    f"{DB_READER_SERVICE_URL}/venue/{user_id}",
+                    timeout=10.0
+                )
+                if venue_response.status_code == 200:
+                    profile_data["venue_data"] = venue_response.json()
+            
+            elif role_id == ROLE_IDS["ORGANIZER"]:
+                org_response = await client.get(
+                    f"{DB_READER_SERVICE_URL}/organizer/{user_id}",
+                    timeout=10.0
+                )
+                if org_response.status_code == 200:
+                    profile_data["organizer_data"] = org_response.json()
 
             return JSONResponse(content=profile_data)
             

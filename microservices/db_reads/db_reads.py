@@ -226,9 +226,9 @@ async def get_venues():
 async def get_event_details(event_id: int):
     """
         Fetch detailed event info including venue, organizer, and DJs. 
-        This includes sensitive data and serves the same purpose as getting events by a certain user_id. Temporary
+        Public
     """
-    
+
     query = """
     SELECT 
         e.id as event_id,
@@ -347,7 +347,15 @@ async def get_event_details(event_id: int):
         print(f"Event details for event {event_id}: {response}")
         json_str = json.dumps(response, cls=CustomJSONEncoder)
         return JSONResponse(content=json.loads(json_str))
-    
+
+@app.get("/events/by_dj/{dj_id}")
+async def get_djs_events(dj_id: int):
+    print("dd")
+
+@app.get("/events/by_venue/{venue_id}")
+async def get_djs_events(venue_id: int):
+    print("dd")
+
 @app.get("/user_recommendation_data/{user_id}")
 async def get_user_recommendation_data(user_id: int) -> Dict:
     """Fetch and aggregate user event history data for recommendations."""
@@ -473,7 +481,7 @@ async def get_user_recommendation_data(user_id: int) -> Dict:
     return result
 
 
-# --------------- Private User-Specific Endpoints ----------------
+# --------------- Private User-Specific Profile Data; Sensitive ----------------
 @app.get("/profile/{user_id}")
 async def get_profile_data(user_id: int):
     """Fetch user profile data including roles and role-specific information."""
@@ -609,6 +617,8 @@ async def get_organizer_profile(user_id: int):
         print(f"Organizer profile data for user {user_id}: {organizer_data}")
         return organizer_data
 
+
+# --------------- Private User-Specific Event Data; Sensitive ----------------
 @app.get("/events/dj/{user_id}")
 async def get_dj_events(user_id: int):
     """Fetch events specific to a DJ with three different categories."""
