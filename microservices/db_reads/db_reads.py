@@ -101,6 +101,7 @@ async def stream_query(query: str, *params):
                     cls=CustomJSONEncoder
                 ) + "\n"
 
+# ADD FEATURED BOOL TO EVENT_DATA; FILTER RESPONSE ACCORDINGLY (j duplicate featured events into seperate object)
 @app.get("/events", response_class=StreamingResponse)
 async def get_events():
     """Stream all events with their display-relevant data and genres. Public endpoint"""
@@ -348,6 +349,7 @@ async def get_event_details(event_id: int):
         json_str = json.dumps(response, cls=CustomJSONEncoder)
         return JSONResponse(content=json.loads(json_str))
 
+# CURSOR...
 @app.get("/events/by_dj/{dj_id}")
 async def get_djs_events(dj_id: int):
     print("dj")
