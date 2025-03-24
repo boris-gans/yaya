@@ -191,6 +191,7 @@ public_handlers = {
 # --------------- JWT Util Functions ----------------
 security = HTTPBearer()
 
+# Decode and validate JWT; return user data encoded in token
 async def get_current_user(credentials: HTTPAuthorizationCredentials = Security(security)):
     try:
         token = credentials.credentials
@@ -294,7 +295,7 @@ def verify_refresh_token(refresh_token: str):
 
 
 # -------------------- Auth Functions -----------------------
-async def get_current_user_postgres(username_or_email: str, pw: str):
+async def confirm_login_postgres(username_or_email: str, pw: str):
     global db_pool
     if not db_pool:
         raise HTTPException(status_code=503, detail="Database connection failed")
@@ -380,7 +381,7 @@ async def login(creds: dict = Body(...)):
     if not identifier or not pw:
         raise HTTPException(status_code=401, detail="Missing credentials")
     
-    user_data = await get_current_user_postgres(identifier, pw)
+    user_data = await confirm_login_postgres(identifier, pw)
     # Make sure username is included in user_data
     if 'username' not in user_data:
         user_data['username'] = user_data.get('email', identifier)
@@ -643,22 +644,6 @@ async def get_user_recommendations(user_id: int):
         except httpx.HTTPError as e:
             raise HTTPException(status_code=500, detail=str(e))
 
-# --------------- B.S. Endpoints ----------------
-@app.get("/new_key")
-def refresh_key_manual():
-    """faking JWT key refresh; should be on timer"""
-    rotate_keys()
-
-@app.get("/protected")
-def protected(token: str):
-    """temporary endpoint to see whats in the JWT"""
-    user = decode_jwt(token)
-    if not user[0]:
-        raise HTTPException(status_code=401, detail=user[1])
-
-    print(f"Encoded data:\n {user}")
-    return {"message": f"Hello, User {user[1]['user_id']}!", "other_data": user[1]}
-
 @app.get("/events/{user_id}")
 async def get_user_events(
     current_user: dict = Depends(get_current_user)
@@ -701,9 +686,21 @@ async def get_user_events(
             raise HTTPException(status_code=500, detail=str(e))
 
 
+# --------------- B.S. Endpoints ----------------
+# @app.get("/new_key")
+def refresh_key_manual():
+    """faking JWT key refresh; should be on timer"""
+    rotate_keys()
 
+# @app.get("/protected")
+def protected(token: str):
+    """temporary endpoint to see whats in the JWT"""
+    user = decode_jwt(token)
+    if not user[0]:
+        raise HTTPException(status_code=401, detail=user[1])
 
-
+    print(f"Encoded data:\n {user}")
+    return {"message": f"Hello, User {user[1]['user_id']}!", "other_data": user[1]}
 
 
 if __name__ == "__main__":
