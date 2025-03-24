@@ -521,14 +521,13 @@ async def proxy_get_djs():
         except httpx.HTTPError as e:
             raise HTTPException(status_code=500, detail=str(e))
 
+
+# ----------- Direct Proxy Read Endpoints ---------------
 @app.get("/venues")
-async def proxy_get_venues(
-    current_user: dict = Depends(get_current_user)
-):
-    """Proxy request for getting all venues grouped by country. Private endpoint."""
+async def proxy_get_venues():
+    """Proxy request for getting all venues grouped by country. Public endpoint."""
     async with httpx.AsyncClient() as client:
         try:
-            print(f"Current user: {current_user}")
             response = await client.get(f"{DB_READER_SERVICE_URL}/venues", timeout=30.0)
             
             if response.status_code == 404:
@@ -539,11 +538,10 @@ async def proxy_get_venues(
         except httpx.HTTPError as e:
             raise HTTPException(status_code=500, detail=str(e))
 
-
-# ----------- Direct Proxy Read Endpoints ---------------
-@app.get("/event/{event_id}")
+# @app.get("/event/{event_id}")
 async def proxy_get_event_details(event_id: int):
-    """Proxy request for getting detailed event info (venue & organizer). Public endpoint."""
+    """Proxy request for getting detailed event info (venue & organizer). Private endpoint. TEMPORARY"""
+
     async with httpx.AsyncClient() as client:
         try:
             response = await client.get(f"{DB_READER_SERVICE_URL}/event/{event_id}", timeout=10.0)
@@ -606,13 +604,17 @@ async def get_user_profile(
         except httpx.HTTPError as e:
             raise HTTPException(status_code=500, detail=str(e))
 
+
 # ----------- Recommendation Endpoints ---------------
 @app.get("/recommendations/{user_id}")
-async def get_user_recommendations(user_id: int):
+async def get_user_recommendations(
+    current_user: dict = Depends(get_current_user)
+):
     """Asynchronously fetch and process recommendations."""
     async with httpx.AsyncClient() as client:
         try:
-            # Create both tasks immediately
+            user_id = current_user.get('id')
+
             user_data_task = create_task(
                 client.get(
                     f"{DB_READER_SERVICE_URL}/user_recommendation_data/{user_id}",
@@ -651,7 +653,6 @@ async def get_user_events(
     """Proxy request for getting user's events based on their role."""
     async with httpx.AsyncClient() as client:
         try:
-            # role_id = 3
             user_id = current_user.get('id')
             role_id = current_user.get('role_id')
             if not role_id:

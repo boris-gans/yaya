@@ -89,8 +89,7 @@ app = FastAPI(lifespan=lifespan)
 db = Database()
 
 
-# --------------- Streaming Endpoints ----------------
-
+# --------------- Streaming Endpoints + Utils ----------------
 async def stream_query(query: str, *params):
     """Helper function to stream query results as JSON."""
     pool = await db.get_connection()
@@ -104,7 +103,7 @@ async def stream_query(query: str, *params):
 
 @app.get("/events", response_class=StreamingResponse)
 async def get_events():
-    """Stream all events with their display-relevant data and genres."""
+    """Stream all events with their display-relevant data and genres. Public endpoint"""
 
     query = """
     WITH base_events AS (
@@ -140,7 +139,7 @@ async def get_events():
 
 @app.get("/djs", response_class=StreamingResponse)
 async def get_djs():
-    """Stream all DJs with their socials and genres."""
+    """Stream all DJs with their socials and genres. Public endpoint"""
     query = """
     SELECT 
         d.id AS dj_id,
@@ -169,9 +168,12 @@ async def get_djs():
     """
     return StreamingResponse(stream_query(query), media_type="application/json")
 
+
+# --------------- Direct Proxy Endpoints ----------------
 @app.get("/venues")
 async def get_venues():
-    """Fetch all venues grouped by country."""
+    """Fetch all venues grouped by country. Public endpoint"""
+
     query = """
     SELECT 
         id,
@@ -220,10 +222,13 @@ async def get_venues():
         json_str = json.dumps(grouped_venues, cls=CustomJSONEncoder)
         return JSONResponse(content=json.loads(json_str))
 
-# --------------- Direct Proxy Endpoints ----------------
 @app.get("/event/{event_id}")
 async def get_event_details(event_id: int):
-    """Fetch detailed event info including venue, organizer, and DJs."""
+    """
+        Fetch detailed event info including venue, organizer, and DJs. 
+        This includes sensitive data and serves the same purpose as getting events by a certain user_id. Temporary
+    """
+    
     query = """
     SELECT 
         e.id as event_id,
