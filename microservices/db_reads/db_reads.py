@@ -350,11 +350,11 @@ async def get_event_details(event_id: int):
 
 @app.get("/events/by_dj/{dj_id}")
 async def get_djs_events(dj_id: int):
-    print("dd")
+    print("dj")
 
 @app.get("/events/by_venue/{venue_id}")
 async def get_djs_events(venue_id: int):
-    print("dd")
+    print("venue")
 
 @app.get("/user_recommendation_data/{user_id}")
 async def get_user_recommendation_data(user_id: int) -> Dict:

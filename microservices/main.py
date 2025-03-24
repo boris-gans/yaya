@@ -75,6 +75,11 @@ ROLE_IDS = {
     "VENUE": 4
 }
 
+ENTITY_TYPES = {
+    "DJ": "by_dj",
+    "VENUE": "by_venue"
+}
+
 
 # gRPC Channel to the write microservice
 grpc_channel = grpc.insecure_channel(GRPC_INSC_CHANNEL)
@@ -555,8 +560,20 @@ async def proxy_get_event_details(event_id: int):
             raise HTTPException(status_code=500, detail=str(e))
 
 @app.get("/event/by_entity/{entity_type}/{entity_id}")
-async def proxy_get_events_by_entity(entity_type: int, entity_id: int):
-    print("ddd")
+async def proxy_get_events_by_entity(entity_type: str, entity_id: int):
+    if entity_type in ENTITY_TYPES:
+        route = ENTITY_TYPES.get(entity_type)
+    else:
+        raise HTTPException(status_code=400, detail="Unknown entity")
+
+    async with httpx.AsyncClient() as client:
+        try:
+            response = await client.get(f"{DB_READER_SERVICE_URL}/events/{route}/{entity_id}", timeout=10.0)
+            print(response.json())
+
+            return JSONResponse(content=response.json(), status_code=response.status_code)
+        except httpx.HTTPError as e:
+            raise HTTPException(status_code=500, detail=str(e))
 
 @app.get("/profile/{user_id}")
 async def get_user_profile(
