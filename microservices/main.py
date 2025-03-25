@@ -230,7 +230,8 @@ def create_jwt(data: dict, expires_delta: Optional[timedelta] = None):
         'id': data['id'],
         'username': data['username'],
         'role_id': data.get('role_id'),
-        'location': data.get('location'),
+        'country': data.get('country'),
+        'city': data.get('city'),
         'language': data.get('language')
     }
     if data.get('role_id') != 1:
@@ -318,7 +319,8 @@ async def confirm_login_postgres(username_or_email: str, pw: str):
                     ud.first_name, 
                     ud.last_name, 
                     ud.email, 
-                    ud.location, 
+                    ud.country,
+                    ud.city,
                     ud.language,
                     ur.role_id
                 FROM user_data ud

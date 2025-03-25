@@ -50,7 +50,7 @@ message UserData {
   string first_name = 2;
   string last_name = 3;
   string email = 4;
-  string location = 5;
+  string country = 5;
   string language = 6;
   Gender gender = 7;
   string birthdate = 12;
@@ -58,6 +58,7 @@ message UserData {
   bool music_service = 10;
   string pw = 11;
   repeated Genre genres = 13;
+  optional string city = 14;
 }
 
 message CreateUserRequest {
@@ -80,7 +81,7 @@ message DJData {
     string first_name = 2;
     string last_name = 3;
     string email = 4;
-    string location = 5;
+    string country = 5;
     string language = 6;
     Gender gender = 7;
     string birthdate = 8;
@@ -89,6 +90,7 @@ message DJData {
     string phone = 11;
     repeated Genre genres = 12;
     Socials social_data = 13;
+    optional string city = 14;
 }
 
 message CreateDJRequest {

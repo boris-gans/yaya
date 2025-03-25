@@ -94,7 +94,7 @@ def db_query(query: str, *params):
         return result[0]
 
 
-def create_user_with_role(cursor, user_data, username_override=None, location_override=None, role_id=None) -> int:
+def create_user_with_role(cursor, user_data, username_override=None, country_override=None, role_id=None) -> int:
     """
     Creates a user and assigns a role using the provided cursor.
     Returns the user_id if successful, raises exception if not.
@@ -103,20 +103,20 @@ def create_user_with_role(cursor, user_data, username_override=None, location_ov
         # Insert user
         user_query = """
         INSERT INTO user_data(
-            username, first_name, last_name, email, location, language, 
+            username, first_name, last_name, email, country, language, 
             gender, birthdate, spend_class, pw
         ) VALUES(%s, %s, %s, %s, %s, %s, %s, %s, %s, %s) 
         RETURNING id;
         """
         
         username = username_override or user_data.username
-        location = location_override or user_data.location
+        country = country_override or user_data.country
         values = (
             username,
             user_data.first_name,
             user_data.last_name,
             user_data.email,
-            location,
+            country,
             user_data.language,
             GENDER_MAP.get(user_data.gender, 'Other'),
             user_data.birthdate,
@@ -293,7 +293,7 @@ class WriteService(write_service_pb2_grpc.WriteServiceServicer):
                 # Create DJ entry with user_id
                 dj_query = """
                 INSERT INTO dj (
-                    user_id, alias, first_name, last_name, bio, location, 
+                    user_id, alias, first_name, last_name, bio, country, 
                     email, phone
                 ) VALUES (%s, %s, %s, %s, %s, %s, %s, %s) 
                 RETURNING id;
@@ -376,7 +376,7 @@ class WriteService(write_service_pb2_grpc.WriteServiceServicer):
                     cursor,
                     request.data,
                     username_override=request.data.venue_name,
-                    location_override=request.data.venue_city,
+                    country_override=request.data.venue_country,
                     role_id=ROLE_IDS["VENUE"]
                 )
 
@@ -446,7 +446,7 @@ class WriteService(write_service_pb2_grpc.WriteServiceServicer):
                     cursor,
                     request.data,
                     username_override=request.data.org_name,
-                    location_override=request.data.country,
+                    country_override=request.data.country,
                     role_id=ROLE_IDS["ORGANIZER"]
                 )
 
