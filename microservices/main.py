@@ -585,7 +585,7 @@ async def get_user_profile(
             # print(current_user)
             # user_id = current_user.get('id')
             # role_id = current_user.get('role_id')
-            role_id = 1
+            role_id = 3
             response = await client.get(
                 f"{DB_READER_SERVICE_URL}/profile/{user_id}",
                 timeout=10.0

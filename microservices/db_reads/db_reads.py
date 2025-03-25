@@ -34,6 +34,16 @@ base_static_fields = {"id", "registered_at", "notifications"}
 user_dynamic_fields = {"genres"}
 user_static_fields = {"attendance"}
 
+dj_dynamic_fields = {"alias", "bio", "country", "phone", "socials"}
+dj_static_fields = {"id","interested_count", "notifications", "completed_events_count", "metrics", "language_distribution", "genre_dist"}
+
+venue_dynamic_fields = {"name", "capacity", "table_count"}
+venue_static_fields = {"id", "address", "city", "state", "zip", "country", "features", "type_distribution", "language_distribution"}
+
+organizer_dynamic_fields = {"name", "phone", "country", "city", "website"}
+organizer_static_fields = {"id", "notifications", "features"}
+
+
 class CustomJSONEncoder(json.JSONEncoder):
     def default(self, obj):
         if isinstance(obj, datetime):
@@ -665,46 +675,65 @@ async def get_user_profile(user_id: int):
 
         return response
 
-
 @app.get("/dj/{user_id}")
 async def get_dj_profile(user_id: int):
     """Fetch DJ-specific profile data."""
     pool = await db.get_connection()
     async with pool.acquire() as conn:
         query = """
-        SELECT
-            alias,
-            bio,
-            country,
-            interested_count,
-            notifications,
-            created_at,
-            phone,
-            completed_events_count,
-            genre_dist,
-            language_distribution,
-            metrics
-        FROM dj 
-        WHERE user_id = $1;
+            SELECT
+                id,
+                alias,
+                bio,
+                country,
+                phone,
+                interested_count,
+                notifications,
+                completed_events_count,
+                genre_dist,
+                language_distribution,
+                metrics,
+                (
+                    SELECT jsonb_agg(jsonb_build_object(
+                                'website', ds.website,
+                                'soundcloud', ds.soundcloud,
+                                'spotify', ds.spotify,
+                                'facebook', ds.facebook,
+                                'instagram', ds.instagram,
+                                'snapchat', ds.snapchat,
+                                'x', ds.x
+                    ))
+                    FROM dj_socials ds
+                    WHERE ds.dj_id = dj.id
+                ) AS socials
+            FROM dj
+            WHERE user_id = $1;
         """
-        result = await conn.fetchrow(query, user_id)
-        if not result:
+        dj_data = await conn.fetchrow(query, user_id)
+        if not dj_data:
             return JSONResponse({"error": "DJ not found"}, status_code=404)
-        
+
         # Convert to dict and parse JSONB fields
-        dj_data = dict(result)
+        result = dict(dj_data)
         try:
-            if dj_data.get('genre_dist'):
-                dj_data['genre_dist'] = json.loads(dj_data['genre_dist'])
-            if dj_data.get('language_distribution'):
-                dj_data['language_distribution'] = json.loads(dj_data['language_distribution'])
-            if dj_data.get('metrics'):
-                dj_data['metrics'] = json.loads(dj_data['metrics'])
+            if result.get('genre_dist'):
+                result['genre_dist'] = json.loads(result['genre_dist'])
+            if result.get('language_distribution'):
+                result['language_distribution'] = json.loads(result['language_distribution'])
+            if result.get('metrics'):
+                result['metrics'] = json.loads(result['metrics'])
+            if result.get('socials'):
+                result['socials'] = json.loads(result['socials'])
         except json.JSONDecodeError as e:
             print(f"Error parsing JSONB fields for DJ {user_id}: {e}")
         
-        print(f"DJ profile data for user {user_id}: {dj_data}")
-        return dj_data
+        # format output
+        dynamic_data = {key: value for key, value in result.items() if key in dj_dynamic_fields}
+        static_data = {key: value for key, value in result.items() if key in dj_static_fields}
+        response = {"dynamic_data": dynamic_data, "static_data": static_data}
+        
+        print(f"DJ profile data for user {user_id}: {response}")
+        return response
 
 @app.get("/venue/{user_id}")
 async def get_venue_profile(user_id: int):
@@ -713,39 +742,45 @@ async def get_venue_profile(user_id: int):
     async with pool.acquire() as conn:
         query = """
         SELECT
+            id,
             name,
             capacity,
+            table_count,
             address,
             city,
             state,
             zip,
             country,
-            table_count,
-            completed_events_count,
             type_distribution,
             language_distribution,
             features
         FROM venues 
         WHERE user_id = $1;
         """
-        result = await conn.fetchrow(query, user_id)
-        if not result:
+        venue_data = await conn.fetchrow(query, user_id)
+        if not venue_data:
             return JSONResponse({"error": "Venue not found"}, status_code=404)
         
         # Convert to dict and parse JSONB fields
-        venue_data = dict(result)
+        result = dict(venue_data)
         try:
-            if venue_data.get('type_distribution'):
-                venue_data['type_distribution'] = json.loads(venue_data['type_distribution'])
-            if venue_data.get('language_distribution'):
-                venue_data['language_distribution'] = json.loads(venue_data['language_distribution'])
-            if venue_data.get('features'):
-                venue_data['features'] = json.loads(venue_data['features'])
+            if result.get('type_distribution'):
+                result['type_distribution'] = json.loads(result['type_distribution'])
+            if result.get('language_distribution'):
+                result['language_distribution'] = json.loads(result['language_distribution'])
+            if result.get('features'):
+                result['features'] = json.loads(result['features'])
         except json.JSONDecodeError as e:
             print(f"Error parsing JSONB fields for venue {user_id}: {e}")
         
-        print(f"Venue profile data for user {user_id}: {venue_data}")
-        return venue_data
+        # format output
+        print(result)
+        dynamic_data = {key: value for key, value in result.items() if key in venue_dynamic_fields}
+        static_data = {key: value for key, value in result.items() if key in venue_static_fields}
+        response = {"dynamic_data": dynamic_data, "static_data": static_data}
+        
+        print(f"Venue profile data for user {user_id}: {response}")
+        return response
 
 @app.get("/organizer/{user_id}")
 async def get_organizer_profile(user_id: int):
@@ -753,23 +788,28 @@ async def get_organizer_profile(user_id: int):
     pool = await db.get_connection()
     async with pool.acquire() as conn:
         query = """
-        SELECT name, phone, website, notifications, features
-        FROM organizer 
-        WHERE user_id = $1;
+            SELECT name, phone, country, city, website, notifications, features, id
+            FROM organizer 
+            WHERE user_id = $1;
         """
-        result = await conn.fetchrow(query, user_id)
-        if not result:
+        organizer_data = await conn.fetchrow(query, user_id)
+        if not organizer_data:
             return JSONResponse({"error": "Organizer not found"}, status_code=404)
         
-        organizer_data = dict(result)
+        result = dict(organizer_data)
         try:
-            if organizer_data.get('features'):
-                organizer_data['features'] = json.loads(organizer_data['features'])
+            if result.get('features'):
+                result['features'] = json.loads(result['features'])
         except json.JSONDecodeError as e:
             print(f"Error parsing JSONB fields for organizer {user_id}: {e}")
+
+        # format output
+        dynamic_data = {key: value for key, value in result.items() if key in organizer_dynamic_fields}
+        static_data = {key: value for key, value in result.items() if key in organizer_static_fields}
+        response = {"dynamic_data": dynamic_data, "static_data": static_data}
         
-        print(f"Organizer profile data for user {user_id}: {organizer_data}")
-        return organizer_data
+        print(f"Organizer profile data for user {user_id}: {response}")
+        return response
 
 
 # --------------- Private User-Specific Event Data; Sensitive ----------------
