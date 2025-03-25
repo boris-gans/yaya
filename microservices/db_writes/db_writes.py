@@ -760,7 +760,8 @@ class WriteService(write_service_pb2_grpc.WriteServiceServicer):
                         # Check if social record exists for this DJ
                         cursor.execute("SELECT COUNT(*) FROM dj_socials WHERE dj_id = %s", (dj_id,))
                         social_exists = cursor.fetchone()[0] > 0
-                        
+                        print(f"Social exists check: {social_exists}")
+                        # ENSURE SOCIALS ARENT OVERWRITTEN; CHECK WORKS BUT SHOULD ONLY INSERT VALUES INCLUDED
                         if social_exists:
                             # Update existing record
                             socials_query = """

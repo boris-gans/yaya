@@ -463,8 +463,8 @@ async def essential_write_modify(
 
     obj_type = data.get("type")
     obj_data = data.get("data")
-    obj_data['user_id'] = 73
-    obj_data['role_id'] = 1
+    obj_data['user_id'] = 94
+    obj_data['role_id'] = 2
     print(obj_data)
     
     # print(f"\nUser {current_user['id']} modifying DB with operation: {obj_type}")
