@@ -218,6 +218,24 @@ message UpdateProfileRequest {
   UpdateProfileData data = 1;
 }
 
+message ShareTicketData {
+  optional string username = 1;
+  optional string email = 2;
+}
+
+message PurchaseTicketData {
+  int32 user_id = 1;
+  int32 event_id = 2;
+  int32 num_tickets = 3;
+  string price = 4;
+  bool table_booking = 5;
+  repeated ShareTicketData share_data = 6;
+}
+
+message PurchaseTicketRequest {
+  PurchaseTicketData data = 1;
+}
+
 service WriteService {
   rpc CreateEvent(CreateEventRequest) returns (CreateEntityResponse);
   rpc CreateUser(CreateUserRequest) returns (CreateEntityResponse);
@@ -228,6 +246,7 @@ service WriteService {
   rpc AddDjEvent(CreateDjEventRequest) returns (CreateEntityResponse);
   rpc DeleteEvent(DeleteEventRequest) returns (CreateEntityResponse);
   rpc UpdateProfile(UpdateProfileRequest) returns (CreateEntityResponse);
+  rpc PurchaseTicket(PurchaseTicketRequest) returns (CreateEntityResponse);
 }
 
 message CreateEntityResponse {

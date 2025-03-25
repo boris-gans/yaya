@@ -79,6 +79,11 @@ class WriteServiceStub(object):
                 request_serializer=write__service__pb2.UpdateProfileRequest.SerializeToString,
                 response_deserializer=write__service__pb2.CreateEntityResponse.FromString,
                 _registered_method=True)
+        self.PurchaseTicket = channel.unary_unary(
+                '/WriteService/PurchaseTicket',
+                request_serializer=write__service__pb2.PurchaseTicketRequest.SerializeToString,
+                response_deserializer=write__service__pb2.CreateEntityResponse.FromString,
+                _registered_method=True)
 
 
 class WriteServiceServicer(object):
@@ -138,6 +143,12 @@ class WriteServiceServicer(object):
         context.set_details('Method not implemented!')
         raise NotImplementedError('Method not implemented!')
 
+    def PurchaseTicket(self, request, context):
+        """Missing associated documentation comment in .proto file."""
+        context.set_code(grpc.StatusCode.UNIMPLEMENTED)
+        context.set_details('Method not implemented!')
+        raise NotImplementedError('Method not implemented!')
+
 
 def add_WriteServiceServicer_to_server(servicer, server):
     rpc_method_handlers = {
@@ -184,6 +195,11 @@ def add_WriteServiceServicer_to_server(servicer, server):
             'UpdateProfile': grpc.unary_unary_rpc_method_handler(
                     servicer.UpdateProfile,
                     request_deserializer=write__service__pb2.UpdateProfileRequest.FromString,
+                    response_serializer=write__service__pb2.CreateEntityResponse.SerializeToString,
+            ),
+            'PurchaseTicket': grpc.unary_unary_rpc_method_handler(
+                    servicer.PurchaseTicket,
+                    request_deserializer=write__service__pb2.PurchaseTicketRequest.FromString,
                     response_serializer=write__service__pb2.CreateEntityResponse.SerializeToString,
             ),
     }
@@ -429,6 +445,33 @@ class WriteService(object):
             target,
             '/WriteService/UpdateProfile',
             write__service__pb2.UpdateProfileRequest.SerializeToString,
+            write__service__pb2.CreateEntityResponse.FromString,
+            options,
+            channel_credentials,
+            insecure,
+            call_credentials,
+            compression,
+            wait_for_ready,
+            timeout,
+            metadata,
+            _registered_method=True)
+
+    @staticmethod
+    def PurchaseTicket(request,
+            target,
+            options=(),
+            channel_credentials=None,
+            call_credentials=None,
+            insecure=False,
+            compression=None,
+            wait_for_ready=None,
+            timeout=None,
+            metadata=None):
+        return grpc.experimental.unary_unary(
+            request,
+            target,
+            '/WriteService/PurchaseTicket',
+            write__service__pb2.PurchaseTicketRequest.SerializeToString,
             write__service__pb2.CreateEntityResponse.FromString,
             options,
             channel_credentials,

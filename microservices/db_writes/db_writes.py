@@ -896,6 +896,84 @@ class WriteService(write_service_pb2_grpc.WriteServiceServicer):
             conn.autocommit = True
             pool.putconn(conn)
 
+    def PurchaseTicket(self, request, context):
+        print(f"Received data: {request.data}")
+        conn = pool.getconn()
+        try:
+            print("\nStarting ticket purchase transaction...")
+            conn.autocommit = False  # Start transaction
+            
+            with conn.cursor() as cursor:
+                # 1. Insert the main purchase record
+                purchase_query = """
+                INSERT INTO purchase (
+                    user_id, event_id, num_tickets, price, table_booking
+                ) VALUES (%s, %s, %s, %s, %s)
+                RETURNING id;
+                """
+                purchase_values = [
+                    request.data.user_id,
+                    request.data.event_id,
+                    request.data.num_tickets,
+                    request.data.price,
+                    request.data.table_booking
+                ]
+                
+                cursor.execute(purchase_query, purchase_values)
+                purchase_id = cursor.fetchone()[0]
+                print(f"Created purchase record with ID: {purchase_id}")
+                
+                # 2. Process any shared tickets
+                if request.data.share_data:
+                    for share_data in request.data.share_data:
+                        # Insert shared ticket details
+                        share_details_query = """
+                        INSERT INTO shared_ticket_details (
+                            username, email
+                        ) VALUES (%s, %s)
+                        RETURNING id;
+                        """
+                        
+                        share_values = [
+                            share_data.username.lower() if share_data.HasField("username") else None,
+                            share_data.email.lower() if share_data.HasField("email") else None
+                        ]
+                        
+                        cursor.execute(share_details_query, share_values)
+                        share_id = cursor.fetchone()[0]
+                        print(f"Created shared ticket details with ID: {share_id}")
+                        
+                        # Create the shared ticket record linking purchase and share details
+                        shared_ticket_query = """
+                        INSERT INTO shared_ticket (
+                            purchase_id, share_id
+                        ) VALUES (%s, %s);
+                        """
+                        
+                        cursor.execute(shared_ticket_query, (purchase_id, share_id))
+                        print(f"Linked purchase {purchase_id} to shared ticket details {share_id}")
+                
+                conn.commit()
+                print("Ticket purchase transaction completed successfully!\n")
+                
+                return write_service_pb2.CreateEntityResponse(
+                    success=True,
+                    message=f"Ticket purchased successfully! Purchase ID: {purchase_id}"
+                )
+                
+        except Exception as e:
+            conn.rollback()
+            print(f"Exception during ticket purchase: {e}")
+            return write_service_pb2.CreateEntityResponse(
+                success=False,
+                message=f"Error purchasing ticket: {str(e)}"
+            )
+        finally:
+            conn.autocommit = True
+            pool.putconn(conn)
+
+        
+
 # Run gRPC Server
 def serve():
     server = grpc.server(futures.ThreadPoolExecutor(max_workers=10))  # 10 workers for concurrent requests

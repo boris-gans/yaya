@@ -116,19 +116,7 @@ app.add_middleware(
 )
 
 # --------------- Write DB Operations - GRPC channels ----------------
-def handle_event(data):
-    date_str = data.get("date")
-    date_obj = datetime.fromisoformat(date_str.replace("Z", "+00:00"))  # Handle UTC format
-    timestamp = Timestamp()
-    timestamp.FromDatetime(date_obj)
-    data['date'] = timestamp
-    print(f"Sync data: {data}")
-
-
-    request = write_service_pb2.CreateEventRequest(data=data)
-    response = grpc_stub.CreateEvent(request)
-    return {"Success": response.success, "Message": response.message}
-
+# public handlers
 def handle_venue(data):
     print(f"Sync data: {data}")
 
@@ -155,6 +143,20 @@ def handle_org(data):
 
     request = write_service_pb2.CreateOrganizerRequest(data=data)
     response = grpc_stub.CreateOrganizer(request)
+    return {"Success": response.success, "Message": response.message}
+
+# private handlers
+def handle_event(data):
+    date_str = data.get("date")
+    date_obj = datetime.fromisoformat(date_str.replace("Z", "+00:00"))  # Handle UTC format
+    timestamp = Timestamp()
+    timestamp.FromDatetime(date_obj)
+    data['date'] = timestamp
+    print(f"Sync data: {data}")
+
+
+    request = write_service_pb2.CreateEventRequest(data=data)
+    response = grpc_stub.CreateEvent(request)
     return {"Success": response.success, "Message": response.message}
 
 def handle_publish(data):
@@ -185,12 +187,20 @@ def handle_update_profile(data):
     response = grpc_stub.UpdateProfile(request)
     return {"Success": response.success, "Message": response.message}
 
+def handle_ticket_purchase(data):
+    print(f"Sync data: {data}")
+
+    request = write_service_pb2.PurchaseTicketRequest(data=data)
+    response = grpc_stub.PurchaseTicket(request)
+    return {"Success": response.success, "Message": response.message}
+
 private_handlers = {
     "event": handle_event,
     "publish_event": handle_publish,
     "dj_event": handle_dj_event,
     "delete_event": handle_event_delete,
-    "update_profile": handle_update_profile
+    "update_profile": handle_update_profile,
+    "ticket_purchase": handle_ticket_purchase
 }
 
 public_handlers = {
@@ -463,8 +473,8 @@ async def essential_write_modify(
 
     obj_type = data.get("type")
     obj_data = data.get("data")
-    obj_data['user_id'] = 94
-    obj_data['role_id'] = 2
+    # obj_data['user_id'] = 96
+    # obj_data['role_id'] = 3
     print(obj_data)
     
     # print(f"\nUser {current_user['id']} modifying DB with operation: {obj_type}")
