@@ -844,9 +844,38 @@ class WriteService(write_service_pb2_grpc.WriteServiceServicer):
                 
                 # 2.4 Update User profile (currently a placeholder for future extensions)
                 elif request.data.HasField("user_prof") and role_id == ROLE_IDS["USER"]:
-                    # Future implementation for user-specific profile updates
-                    pass
+                    # Handle user-specific profile updates
+                    user_prof = request.data.user_prof
+                    
+                    # Clear existing genre associations for this user
+                    clear_genres_query = """
+                    DELETE FROM user_genres 
+                    WHERE user_id = %s;
+                    """
+                    cursor.execute(clear_genres_query, (user_id,))
+                    print(f"Cleared existing genres for user_id: {user_id}")
+                    
+                    # Insert new genre associations
+                    if user_prof.genres:
+                        genre_query = """
+                        INSERT INTO user_genres (user_id, genre_id)
+                        VALUES (%s, %s);
+                        """
+                        for genre_enum in user_prof.genres:
+                            genre_id = GENRE_ID_MAP.get(genre_enum)
+                            if genre_id:
+                                cursor.execute(genre_query, (user_id, genre_id))
+                        
+                        print(f"Updated genres for user_id: {user_id}")
+                else:
+                    print("Mismatch between role_id and provided data")
+                    conn.rollback()
+                    return write_service_pb2.CreateEntityResponse(
+                        success=False, 
+                        message="Mismatch between role_id and provided data"
+                    )
                 
+
                 conn.commit()
                 print("Profile update transaction completed successfully!\n")
                 
