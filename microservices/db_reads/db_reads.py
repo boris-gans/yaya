@@ -148,7 +148,7 @@ async def get_djs():
         d.first_name,
         d.last_name,
         d.bio,
-        d.location,
+        d.country,
         d.interested_count,
         d.created_at,
         ds.website,
@@ -267,7 +267,7 @@ async def get_event_details(event_id: int):
                     d.first_name,
                     d.last_name,
                     d.bio,
-                    d.location,
+                    d.country,
                     d.interested_count,
                     d.created_at,
                     ds.website,
@@ -494,8 +494,8 @@ async def get_profile_data(user_id: int):
         user_query = """
         SELECT 
             username, first_name, last_name, email, 
-            location, language, gender, birthdate, 
-            registered_at,
+            country, language, gender, birthdate, 
+            registered_at, notifications
             (
                 SELECT array_agg(g.name)
                 FROM user_genres ug
@@ -530,10 +530,13 @@ async def get_dj_profile(user_id: int):
     pool = await db.get_connection()
     async with pool.acquire() as conn:
         query = """
-        SELECT 
+        SELECT
+            alias,
             bio,
+            country,
             interested_count,
             notifications,
+            created_at,
             phone,
             completed_events_count,
             genre_dist,
@@ -567,7 +570,8 @@ async def get_venue_profile(user_id: int):
     pool = await db.get_connection()
     async with pool.acquire() as conn:
         query = """
-        SELECT 
+        SELECT
+            name,
             capacity,
             address,
             city,
@@ -607,7 +611,7 @@ async def get_organizer_profile(user_id: int):
     pool = await db.get_connection()
     async with pool.acquire() as conn:
         query = """
-        SELECT website
+        SELECT name, phone, website, notifications, features
         FROM organizer 
         WHERE user_id = $1;
         """
@@ -616,6 +620,12 @@ async def get_organizer_profile(user_id: int):
             return JSONResponse({"error": "Organizer not found"}, status_code=404)
         
         organizer_data = dict(result)
+        try:
+            if organizer_data.get('features'):
+                organizer_data['features'] = json.loads(organizer_data['features'])
+        except json.JSONDecodeError as e:
+            print(f"Error parsing JSONB fields for organizer {user_id}: {e}")
+        
         print(f"Organizer profile data for user {user_id}: {organizer_data}")
         return organizer_data
 
@@ -659,6 +669,9 @@ async def get_dj_events(user_id: int):
                 v.country as venue_country,
                 o.id as organizer_id,
                 o.name as organizer_name,
+                o.phone as organizer_phone,
+                o.email as organizer_email,
+                o.website as organizer_website
                 pe.completed,
                 pe.event_poster,
                 pe.bio,
@@ -700,7 +713,10 @@ async def get_dj_events(user_id: int):
             }
             organizer_info = {
                 "organizer_id": event_dict["organizer_id"],
-                "organizer_name": event_dict["organizer_name"]
+                "organizer_name": event_dict["organizer_name"],
+                "organizer_phone": event_dict["organizer_phone"],
+                "organizer_email": event_dict["organizer_email"],
+                "organizer_website": event_dict["organizer_website"],
             }
             
             if event_dict.get("completed"):
@@ -786,6 +802,9 @@ async def get_venue_events(user_id: int):
                 e.pre_bio,
                 o.id as organizer_id,
                 o.name as organizer_name,
+                o.phone as organizer_phone,
+                o.email as organizer_email,
+                o.website as organizer_website
                 pe.completed,
                 pe.event_poster,
                 pe.bio,
@@ -850,7 +869,10 @@ async def get_venue_events(user_id: int):
                 "venue": venue_info,
                 "organizer": {
                     "organizer_id": event_dict["organizer_id"],
-                    "organizer_name": event_dict["organizer_name"]
+                    "organizer_name": event_dict["organizer_name"],
+                    "organizer_phone": event_dict["organizer_phone"],
+                    "organizer_email": event_dict["organizer_email"],
+                    "organizer_website": event_dict["organizer_website"]
                 },
                 "djs": djs,
                 "status": event_dict["status"]

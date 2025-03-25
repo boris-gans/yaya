@@ -100,29 +100,56 @@ def create_user_with_role(cursor, user_data, username_override=None, country_ove
     Returns the user_id if successful, raises exception if not.
     """
     try:
-        # Insert user
-        user_query = """
-        INSERT INTO user_data(
-            username, first_name, last_name, email, country, language, 
-            gender, birthdate, spend_class, pw
-        ) VALUES(%s, %s, %s, %s, %s, %s, %s, %s, %s, %s) 
-        RETURNING id;
-        """
-        
+        # Compile values
         username = username_override or user_data.username
         country = country_override or user_data.country
-        values = (
-            username,
-            user_data.first_name,
-            user_data.last_name,
-            user_data.email,
-            country,
-            user_data.language,
-            GENDER_MAP.get(user_data.gender, 'Other'),
-            user_data.birthdate,
-            'NA',
-            user_data.pw
-        )
+
+        # Insert user
+        if hasattr(user_data, "city"):
+            user_query = """
+                INSERT INTO user_data(
+                    username, first_name, last_name, email, country, language, 
+                    gender, birthdate, spend_class, pw, city
+                ) VALUES(%s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s) 
+                RETURNING id;
+            """
+            values = (
+                username,
+                user_data.first_name,
+                user_data.last_name,
+                user_data.email,
+                country.lower(),
+                user_data.language.lower(),
+                GENDER_MAP.get(user_data.gender, 'Other'),
+                user_data.birthdate,
+                'NA',
+                user_data.pw,
+                user_data.city.lower()
+            )
+            print(values)
+
+        else:
+            user_query = """
+            INSERT INTO user_data(
+                username, first_name, last_name, email, country, language, 
+                gender, birthdate, spend_class, pw
+            ) VALUES(%s, %s, %s, %s, %s, %s, %s, %s, %s, %s) 
+            RETURNING id;
+            """
+            values = (
+                username,
+                user_data.first_name.lower(),
+                user_data.last_name.lower(),
+                user_data.email.lower(),
+                country,
+                user_data.language,
+                GENDER_MAP.get(user_data.gender, 'Other'),
+                user_data.birthdate,
+                'NA',
+                user_data.pw
+            )
+        
+        
         
         cursor.execute(user_query, values)
         user_id = cursor.fetchone()[0]
@@ -305,7 +332,7 @@ class WriteService(write_service_pb2_grpc.WriteServiceServicer):
                     request.data.first_name,
                     request.data.last_name,
                     request.data.bio,
-                    request.data.location,
+                    request.data.country,
                     request.data.email,
                     request.data.phone
                 )
