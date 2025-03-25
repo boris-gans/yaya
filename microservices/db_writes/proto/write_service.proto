@@ -168,6 +168,56 @@ message DeleteEventRequest {
   DeleteEventData data = 1;
 }
 
+
+message UpdateUserProfileData {
+  repeated Genre genres = 1;
+}
+
+message UpdateVenueProfileData {
+  string name = 1;
+  int64 capacity = 2;
+  int64 table_count = 3;
+}
+
+message UpdateDjProfileData {
+  string alias = 1;
+  string bio = 2;
+  string country = 3;
+  string phone = 4;
+  Socials socials = 5;
+}
+
+message UpdateOrgProfileData {
+  string name = 1;
+  string phone = 2;
+  string country = 3;
+  string website = 4;
+  string city = 5;
+}
+
+
+message UpdateProfileData {
+  string username = 1;
+  string first_name = 2;
+  string last_name = 3;
+  string email = 4;
+  string language = 5;
+  string country = 6;
+  string city = 7;
+  Gender gender = 8;
+  string birthdate = 9;
+  optional UpdateUserProfileData user_prof = 10;
+  optional UpdateVenueProfileData venue_prof = 11;
+  optional UpdateDjProfileData dj_prof = 12;
+  optional UpdateOrgProfileData org_prof = 13;
+  int32 user_id = 14;
+  int32 role_id = 15;
+}
+
+message UpdateProfileRequest {
+  UpdateProfileData data = 1;
+}
+
 service WriteService {
   rpc CreateEvent(CreateEventRequest) returns (CreateEntityResponse);
   rpc CreateUser(CreateUserRequest) returns (CreateEntityResponse);
@@ -177,7 +227,7 @@ service WriteService {
   rpc PublishEvent(CreatePublishRequest) returns (CreateEntityResponse);
   rpc AddDjEvent(CreateDjEventRequest) returns (CreateEntityResponse);
   rpc DeleteEvent(DeleteEventRequest) returns (CreateEntityResponse);
-
+  rpc UpdateProfile(UpdateProfileRequest) returns (CreateEntityResponse);
 }
 
 message CreateEntityResponse {

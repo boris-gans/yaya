@@ -693,7 +693,178 @@ class WriteService(write_service_pb2_grpc.WriteServiceServicer):
                 message=f"Exception during deletion: {str(e)}"
             )
 
+    def UpdateProfile(self, request, context):
+        print(f"Received data: {request.data}")
+        conn = pool.getconn()
+        try:
+            print("\nStarting profile update transaction...")
+            conn.autocommit = False  # Start transaction
+            
+            with conn.cursor() as cursor:
+                user_id = request.data.user_id
+                role_id = request.data.role_id
+                
+                # 1. Update user_data table for common fields (always provided)
+                user_query = """
+                UPDATE user_data 
+                SET username = %s, first_name = %s, last_name = %s, email = %s, 
+                    language = %s, country = %s, city = %s, gender = %s, birthdate = %s
+                WHERE id = %s;
+                """
+                user_values = [
+                    request.data.username.lower(),
+                    request.data.first_name.lower(),
+                    request.data.last_name.lower(),
+                    request.data.email.lower(),
+                    request.data.language.lower(),
+                    request.data.country.lower(),
+                    request.data.city.lower(),
+                    GENDER_MAP.get(request.data.gender, 'Other'),
+                    request.data.birthdate,
+                    user_id
+                ]
+                
+                cursor.execute(user_query, user_values)
+                print(f"Updated user_data for user_id: {user_id}")
+                
+                # 2. Update role-specific profile if provided
+                # 2.1 Update DJ profile
+                if request.data.HasField("dj_prof") and role_id == ROLE_IDS["DJ"]:
+                    dj_prof = request.data.dj_prof
+                    
+                    # Update DJ table (all fields included)
+                    dj_query = """
+                    UPDATE dj 
+                    SET alias = %s, bio = %s, country = %s, phone = %s
+                    WHERE user_id = %s;
+                    """
+                    dj_values = [
+                        dj_prof.alias.lower(),
+                        dj_prof.bio.lower(),
+                        dj_prof.country.lower(),
+                        dj_prof.phone,
+                        user_id
+                    ]
+                    
+                    cursor.execute(dj_query, dj_values)
+                    print(f"Updated DJ profile for user_id: {user_id}")
+                    
+                    # Update DJ socials if provided
+                    if dj_prof.HasField("socials"):
+                        socials = dj_prof.socials
+                        
+                        # Get the DJ ID first
+                        cursor.execute("SELECT id FROM dj WHERE user_id = %s", (user_id,))
+                        dj_id = cursor.fetchone()[0]
+                        
+                        # Check if social record exists for this DJ
+                        cursor.execute("SELECT COUNT(*) FROM dj_socials WHERE dj_id = %s", (dj_id,))
+                        social_exists = cursor.fetchone()[0] > 0
+                        
+                        if social_exists:
+                            # Update existing record
+                            socials_query = """
+                            UPDATE dj_socials 
+                            SET website = %s, soundcloud = %s, spotify = %s, facebook = %s,
+                                instagram = %s, snapchat = %s, x = %s
+                            WHERE dj_id = %s;
+                            """
+                            socials_values = [
+                                socials.website.lower(),
+                                socials.soundcloud.lower(),
+                                socials.spotify.lower(),
+                                socials.facebook.lower(),
+                                socials.instagram.lower(),
+                                socials.snapchat.lower(),
+                                socials.x.lower(),
+                                dj_id
+                            ]
+                            cursor.execute(socials_query, socials_values)
+                        else:
+                            # Create a new record
+                            socials_query = """
+                            INSERT INTO dj_socials (
+                                dj_id, website, soundcloud, spotify, facebook, 
+                                instagram, snapchat, x
+                            ) VALUES (%s, %s, %s, %s, %s, %s, %s, %s);
+                            """
+                            socials_values = [
+                                dj_id,
+                                socials.website.lower(),
+                                socials.soundcloud.lower(),
+                                socials.spotify.lower(),
+                                socials.facebook.lower(),
+                                socials.instagram.lower(),
+                                socials.snapchat.lower(),
+                                socials.x.lower()
+                            ]
+                            cursor.execute(socials_query, socials_values)
+                        
+                        print(f"Updated DJ socials for user_id: {user_id}")
+                
+                # 2.2 Update Venue profile
+                elif request.data.HasField("venue_prof") and role_id == ROLE_IDS["VENUE"]:
+                    venue_prof = request.data.venue_prof
+                    
+                    venue_query = """
+                    UPDATE venues 
+                    SET name = %s, capacity = %s, table_count = %s
+                    WHERE user_id = %s;
+                    """
+                    venue_values = [
+                        venue_prof.name.lower(),
+                        venue_prof.capacity,
+                        venue_prof.table_count,
+                        user_id
+                    ]
+                    
+                    cursor.execute(venue_query, venue_values)
+                    print(f"Updated Venue profile for user_id: {user_id}")
+                
+                # 2.3 Update Organizer profile
+                elif request.data.HasField("org_prof") and role_id == ROLE_IDS["ORGANIZER"]:
+                    org_prof = request.data.org_prof
+                    
+                    org_query = """
+                    UPDATE organizer 
+                    SET name = %s, phone = %s, country = %s, website = %s, city = %s
+                    WHERE user_id = %s;
+                    """
+                    org_values = [
+                        org_prof.name.lower(),
+                        org_prof.phone,
+                        org_prof.country.lower(),
+                        org_prof.website.lower(),
+                        org_prof.city.lower(),
+                        user_id
+                    ]
+                    
+                    cursor.execute(org_query, org_values)
+                    print(f"Updated Organizer profile for user_id: {user_id}")
+                
+                # 2.4 Update User profile (currently a placeholder for future extensions)
+                elif request.data.HasField("user_prof") and role_id == ROLE_IDS["USER"]:
+                    # Future implementation for user-specific profile updates
+                    pass
+                
+                conn.commit()
+                print("Profile update transaction completed successfully!\n")
+                
+                return write_service_pb2.CreateEntityResponse(
+                    success=True, 
+                    message="Profile updated successfully!"
+                )
 
+        except Exception as e:
+            conn.rollback()
+            print(f"Exception during profile update: {e}")
+            return write_service_pb2.CreateEntityResponse(
+                success=False, 
+                message=f"Error updating profile: {str(e)}"
+            )
+        finally:
+            conn.autocommit = True
+            pool.putconn(conn)
 
 # Run gRPC Server
 def serve():

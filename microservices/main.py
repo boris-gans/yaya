@@ -178,11 +178,19 @@ def handle_event_delete(data):
     response = grpc_stub.DeleteEvent(request)
     return {"Success": response.success, "Message": response.message}
 
+def handle_update_profile(data):
+    print(f"Sync data: {data}")
+
+    request = write_service_pb2.UpdateProfileRequest(data=data)
+    response = grpc_stub.UpdateProfile(request)
+    return {"Success": response.success, "Message": response.message}
+
 private_handlers = {
     "event": handle_event,
     "publish_event": handle_publish,
     "dj_event": handle_dj_event,
-    "delete_event": handle_event_delete
+    "delete_event": handle_event_delete,
+    "update_profile": handle_update_profile
 }
 
 public_handlers = {
@@ -442,17 +450,24 @@ async def essential_write_register(data: dict = Body(...)):
 @app.post("/essential_write/modify")
 async def essential_write_modify(
     data: dict = Body(...),
-    current_user: dict = Depends(get_current_user)
+    # current_user: dict = Depends(get_current_user)
 ):
     """
     Handles modifications to existing entities.
     Requires JWT authentication.
     """
 
+    # data['user_id'] = current_user.get('id')
+    # data['role_id'] = current_user.get('role_id')
+
+
     obj_type = data.get("type")
     obj_data = data.get("data")
+    obj_data['user_id'] = 73
+    obj_data['role_id'] = 1
+    print(obj_data)
     
-    print(f"\nUser {current_user['id']} modifying DB with operation: {obj_type}")
+    # print(f"\nUser {current_user['id']} modifying DB with operation: {obj_type}")
     handler = private_handlers.get(obj_type, lambda x: {"error": f"Unknown type: {obj_type}"})  
     response = handler(obj_data)
     print(response)
@@ -576,16 +591,16 @@ async def proxy_get_events_by_entity(entity_type: str, entity_id: int):
 
 @app.get("/profile/{user_id}")
 async def get_user_profile(
-    # current_user: dict = Depends(get_current_user)
-    user_id: int
+    current_user: dict = Depends(get_current_user),
+    # user_id: int
 ):
     """Proxy request for getting user profile data. Private endpoint."""
     async with httpx.AsyncClient() as client:
         try:
-            # print(current_user)
-            # user_id = current_user.get('id')
-            # role_id = current_user.get('role_id')
-            role_id = 3
+            print(current_user)
+            user_id = current_user.get('id')
+            role_id = current_user.get('role_id')
+            # role_id = 3
             response = await client.get(
                 f"{DB_READER_SERVICE_URL}/profile/{user_id}",
                 timeout=10.0
