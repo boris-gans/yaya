@@ -469,65 +469,62 @@ async def background_write(data: dict):
     if data.get('metric_type') not in [m.value for m in MetricType]:
         raise HTTPException(status_code=400, detail="Invalid metric type")
 
-    # Queue the task in Celery
-    task = publish_metric.delay(
-        event_id=data.get("event_id"),
-        metric_type=data.get("metric_type")
-    )
+    try:
+        async with asyncio.timeout(0.5): # 0.5 seconds timeout to prevent blocking
+            # Queue the task in Celery
+            task = publish_metric.delay(
+                event_id=data.get("event_id"),
+                metric_type=data.get("metric_type")
+            )
+            return {
+                "message": "Task queued successfully",
+                "task_id": task.id
+            }
+
+    except (asyncio.TimeoutError, Exception) as e:
+        print(f"Failed to queue background write: {e}")
+        return {
+            "message": "Failed to queue background write, but continuing with main thread",
+            "error": str(e)
+        }
     
-    return {
-        "message": "Task queued successfully",
-        "task_id": task.id
-    }
 
 
 # --------------- Streaming Read Endpoints ----------------
-@app.get("/events", response_class=StreamingResponse)
+@app.get("/events")
 async def proxy_get_events():
-    """Proxy request for streaming all events. Public endpoint."""
+    """Proxy request for getting all events. Public endpoint."""
     async with httpx.AsyncClient() as client:
         try:
             response = await client.get(f"{DB_READER_SERVICE_URL}/events", timeout=30.0)
             
-            async def parse_stream():
-                # Process the stream line by line
-                async for line in response.aiter_lines():
-                    if line.strip():  # Skip empty lines
-                        try:
-                            data = json.loads(line)
-                            event_id = data.get("id")
-                            if event_id:
-                                print(event_id)
-                                await background_write(data={"event_id": event_id, "metric_type": "impression"})
-                            yield line + "\n"
-                        except json.JSONDecodeError:
-                            print(f"Skipping invalid json: {line}")
+            if response.status_code != 200:
+                raise HTTPException(status_code=response.status_code, detail="Failed to fetch events")
+            
+            events_data = response.json()
+            print(events_data)
 
-            return StreamingResponse(
-                parse_stream(),
-                media_type="application/json"
-            )
+            # Process impressions for all events
+            for event in events_data.get("events", []):
+                event_id = event.get("id")
+                if event_id:
+                    await background_write(data={"event_id": event_id, "metric_type": "impression"})
+            
+            return JSONResponse(content=events_data)
         except httpx.HTTPError as e:
             raise HTTPException(status_code=500, detail=str(e))
 
-@app.get("/djs", response_class=StreamingResponse)
+@app.get("/djs")
 async def proxy_get_djs():
-    """Proxy request for streaming all DJs and their socials. Public endpoint."""
+    """Proxy request for getting all DJs and their socials. Public endpoint."""
     async with httpx.AsyncClient() as client:
         try:
             response = await client.get(f"{DB_READER_SERVICE_URL}/djs", timeout=30.0)
             
-            async def parse_stream():
-                # Process the stream line by line
-                async for line in response.aiter_lines():
-                    if line.strip():  # Skip empty lines
-                        # print(f"Line: {line}\n")
-                        yield line + "\n"
-
-            return StreamingResponse(
-                parse_stream(),
-                media_type="application/json"
-            )
+            if response.status_code != 200:
+                raise HTTPException(status_code=response.status_code, detail="Failed to fetch DJs")
+            
+            return JSONResponse(content=response.json())
         except httpx.HTTPError as e:
             raise HTTPException(status_code=500, detail=str(e))
 

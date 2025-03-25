@@ -102,45 +102,59 @@ async def stream_query(query: str, *params):
                 ) + "\n"
 
 # ADD FEATURED BOOL TO EVENT_DATA; FILTER RESPONSE ACCORDINGLY (j duplicate featured events into seperate object)
-@app.get("/events", response_class=StreamingResponse)
+@app.get("/events")
 async def get_events():
-    """Stream all events with their display-relevant data and genres. Public endpoint"""
+    """Fetch all events with their display-relevant data and genres. Public endpoint"""
 
     query = """
-    WITH base_events AS (
-        SELECT 
-            e.id,
-            e.event_name,
-            e.date,
-            v.name as venue_name,
-            v.address as venue_address,
-            v.city as venue_city,
-            v.state as venue_state,
-            v.zip as venue_zip,
-            v.country as venue_country,
-            v.capacity as venue_capacity,
-            o.name as organizer_name,
-            (
-                SELECT array_agg(g.name)
-                FROM event_genres eg
-                JOIN genres g ON eg.genre_id = g.id
-                WHERE eg.event_id = e.id
-            ) as genres,
-            pe.event_poster,
-            pe.bio
-        FROM published_events pe
-        JOIN event_data e ON pe.event_id = e.id
-        JOIN venues v ON e.venue_id = v.id
-        JOIN organizer o ON e.organizer_id = o.id
-    )
-    SELECT * FROM base_events;
+    SELECT 
+        e.id,
+        e.event_name,
+        e.date,
+        v.name as venue_name,
+        v.address as venue_address,
+        v.city as venue_city,
+        v.state as venue_state,
+        v.zip as venue_zip,
+        v.country as venue_country,
+        v.capacity as venue_capacity,
+        o.name as organizer_name,
+        (
+            SELECT array_agg(g.name)
+            FROM event_genres eg
+            JOIN genres g ON eg.genre_id = g.id
+            WHERE eg.event_id = e.id
+        ) as genres,
+        pe.event_poster,
+        pe.bio,
+        pe.featured
+    FROM published_events pe
+    JOIN event_data e ON pe.event_id = e.id
+    JOIN venues v ON e.venue_id = v.id
+    JOIN organizer o ON e.organizer_id = o.id;
     """
     
-    return StreamingResponse(stream_query(query), media_type="application/json")
+    pool = await db.get_connection()
+    async with pool.acquire() as conn:
+        results = await conn.fetch(query)
+        events = [dict(row) for row in results]
+        
+        # Create a separate list for featured events
+        featured_events = [event for event in events if event.get('featured')]
+        
+        print(f"Found {len(events)} events, {len(featured_events)} are featured")
+        
+        response = {
+            "events": events,
+            "featured_events": featured_events
+        }
+        
+        json_str = json.dumps(response, cls=CustomJSONEncoder)
+        return JSONResponse(content=json.loads(json_str))
 
-@app.get("/djs", response_class=StreamingResponse)
+@app.get("/djs")
 async def get_djs():
-    """Stream all DJs with their socials and genres. Public endpoint"""
+    """Fetch all DJs with their socials and genres. Public endpoint"""
     query = """
     SELECT 
         d.id AS dj_id,
@@ -167,7 +181,16 @@ async def get_djs():
     FROM dj d
     LEFT JOIN dj_socials ds ON d.id = ds.dj_id;
     """
-    return StreamingResponse(stream_query(query), media_type="application/json")
+    
+    pool = await db.get_connection()
+    async with pool.acquire() as conn:
+        results = await conn.fetch(query)
+        djs = [dict(row) for row in results]
+        
+        print(f"Found {len(djs)} DJs")
+        
+        json_str = json.dumps(djs, cls=CustomJSONEncoder)
+        return JSONResponse(content=json.loads(json_str))
 
 
 # --------------- Direct Proxy Endpoints ----------------
@@ -349,14 +372,106 @@ async def get_event_details(event_id: int):
         json_str = json.dumps(response, cls=CustomJSONEncoder)
         return JSONResponse(content=json.loads(json_str))
 
-# CURSOR...
 @app.get("/events/by_dj/{dj_id}")
 async def get_djs_events(dj_id: int):
-    print("dj")
+    """Fetch all events for a specific DJ with the same format as the base events endpoint."""
+    query = """
+    SELECT 
+        e.id,
+        e.event_name,
+        e.date,
+        v.name as venue_name,
+        v.address as venue_address,
+        v.city as venue_city,
+        v.state as venue_state,
+        v.zip as venue_zip,
+        v.country as venue_country,
+        v.capacity as venue_capacity,
+        o.name as organizer_name,
+        (
+            SELECT array_agg(g.name)
+            FROM event_genres eg
+            JOIN genres g ON eg.genre_id = g.id
+            WHERE eg.event_id = e.id
+        ) as genres,
+        pe.event_poster,
+        pe.bio,
+        pe.featured
+    FROM published_events pe
+    JOIN event_data e ON pe.event_id = e.id
+    JOIN venues v ON e.venue_id = v.id
+    JOIN organizer o ON e.organizer_id = o.id
+    JOIN event_dj ed ON e.id = ed.event_id
+    WHERE ed.dj_id = $1;
+    """
+    
+    pool = await db.get_connection()
+    async with pool.acquire() as conn:
+        results = await conn.fetch(query, dj_id)
+        events = [dict(row) for row in results]
+        
+        # Create a separate list for featured events
+        featured_events = [event for event in events if event.get('featured')]
+        
+        print(f"Found {len(events)} events for DJ {dj_id}, {len(featured_events)} are featured")
+        
+        response = {
+            "events": events,
+            "featured_events": featured_events
+        }
+        
+        json_str = json.dumps(response, cls=CustomJSONEncoder)
+        return JSONResponse(content=json.loads(json_str))
 
 @app.get("/events/by_venue/{venue_id}")
-async def get_djs_events(venue_id: int):
-    print("venue")
+async def get_venue_events(venue_id: int):
+    """Fetch all events for a specific venue with the same format as the base events endpoint."""
+    query = """
+    SELECT 
+        e.id,
+        e.event_name,
+        e.date,
+        v.name as venue_name,
+        v.address as venue_address,
+        v.city as venue_city,
+        v.state as venue_state,
+        v.zip as venue_zip,
+        v.country as venue_country,
+        v.capacity as venue_capacity,
+        o.name as organizer_name,
+        (
+            SELECT array_agg(g.name)
+            FROM event_genres eg
+            JOIN genres g ON eg.genre_id = g.id
+            WHERE eg.event_id = e.id
+        ) as genres,
+        pe.event_poster,
+        pe.bio,
+        pe.featured
+    FROM published_events pe
+    JOIN event_data e ON pe.event_id = e.id
+    JOIN venues v ON e.venue_id = v.id
+    JOIN organizer o ON e.organizer_id = o.id
+    WHERE e.venue_id = $1;
+    """
+    
+    pool = await db.get_connection()
+    async with pool.acquire() as conn:
+        results = await conn.fetch(query, venue_id)
+        events = [dict(row) for row in results]
+        
+        # Create a separate list for featured events
+        featured_events = [event for event in events if event.get('featured')]
+        
+        print(f"Found {len(events)} events for venue {venue_id}, {len(featured_events)} are featured")
+        
+        response = {
+            "events": events,
+            "featured_events": featured_events
+        }
+        
+        json_str = json.dumps(response, cls=CustomJSONEncoder)
+        return JSONResponse(content=json.loads(json_str))
 
 @app.get("/user_recommendation_data/{user_id}")
 async def get_user_recommendation_data(user_id: int) -> Dict:
