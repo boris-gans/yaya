@@ -470,7 +470,7 @@ async def background_write(data: dict):
         raise HTTPException(status_code=400, detail="Invalid metric type")
 
     try:
-        async with asyncio.timeout(0.5): # 0.5 seconds timeout to prevent blocking
+        async with asyncio.timeout(0.3): # 0.5 seconds timeout to prevent blocking
             # Queue the task in Celery
             task = publish_metric.delay(
                 event_id=data.get("event_id"),
@@ -576,15 +576,16 @@ async def proxy_get_events_by_entity(entity_type: str, entity_id: int):
 
 @app.get("/profile/{user_id}")
 async def get_user_profile(
-    current_user: dict = Depends(get_current_user)
+    # current_user: dict = Depends(get_current_user)
+    user_id: int
 ):
     """Proxy request for getting user profile data. Private endpoint."""
     async with httpx.AsyncClient() as client:
         try:
-            print(current_user)
-            user_id = current_user.get('id')
-            role_id = current_user.get('role_id')
-
+            # print(current_user)
+            # user_id = current_user.get('id')
+            # role_id = current_user.get('role_id')
+            role_id = 1
             response = await client.get(
                 f"{DB_READER_SERVICE_URL}/profile/{user_id}",
                 timeout=10.0
@@ -593,12 +594,21 @@ async def get_user_profile(
             if response.status_code == 404:
                 raise HTTPException(status_code=404, detail="User not found")
             
-            profile_data = response.json()
+            profile_data = {}
+            profile_data["base_user_data"] = response.json()
             print(f"Profile data: {profile_data}")
 
             # DO THIS CONCURRENTLY
             # Add role-specific data based on role_id
-            if role_id == ROLE_IDS["DJ"]:
+            if role_id == ROLE_IDS["USER"]:
+                user_response = await client.get(
+                    f"{DB_READER_SERVICE_URL}/user/{user_id}",
+                    timeout=10.0
+                )
+                if user_response.status_code == 200:
+                    profile_data["user_data"] = user_response.json()
+            
+            elif role_id == ROLE_IDS["DJ"]:
                 dj_response = await client.get(
                     f"{DB_READER_SERVICE_URL}/dj/{user_id}",
                     timeout=10.0

@@ -27,6 +27,13 @@ REDIS_HOST = os.getenv("REDIS_HOST", "driven-robin-54477.upstash.io")
 REDIS_PORT = int(os.getenv("REDIS_PORT", "6379"))
 REDIS_PASSWORD = os.getenv("REDIS_PASSWORD")
 
+# --------------- Constants ----------------
+base_dynamic_fields = {"username", "first_name", "last_name", "email", "country", "city", "language", "gender", "birthdate"}
+base_static_fields = {"id", "registered_at", "notifications"}
+
+user_dynamic_fields = {"genres"}
+user_static_fields = {"attendance"}
+
 class CustomJSONEncoder(json.JSONEncoder):
     def default(self, obj):
         if isinstance(obj, datetime):
@@ -127,7 +134,8 @@ async def get_events():
         ) as genres,
         pe.event_poster,
         pe.bio,
-        pe.featured
+        pe.featured,
+        pe.sold_out
     FROM published_events pe
     JOIN event_data e ON pe.event_id = e.id
     JOIN venues v ON e.venue_id = v.id
@@ -159,8 +167,6 @@ async def get_djs():
     SELECT 
         d.id AS dj_id,
         d.alias,
-        d.first_name,
-        d.last_name,
         d.bio,
         d.country,
         d.interested_count,
@@ -250,7 +256,8 @@ async def get_venues():
 async def get_event_details(event_id: int):
     """
         Fetch detailed event info including venue, organizer, and DJs. 
-        Public
+        Public endpoint.
+        THIS IS WHERE TICKETING INFO WILL BE DISPLAYED
     """
 
     query = """
@@ -287,8 +294,6 @@ async def get_event_details(event_id: int):
                 SELECT 
                     d.id AS dj_id,
                     d.alias,
-                    d.first_name,
-                    d.last_name,
                     d.bio,
                     d.country,
                     d.interested_count,
@@ -601,43 +606,65 @@ async def get_user_recommendation_data(user_id: int) -> Dict:
 # --------------- Private User-Specific Profile Data; Sensitive ----------------
 @app.get("/profile/{user_id}")
 async def get_profile_data(user_id: int):
-    """Fetch user profile data including roles and role-specific information."""
+    """Fetch general profile data for all entities"""
     
     pool = await db.get_connection()
     async with pool.acquire() as conn:
         # First get user's basic data
-        user_query = """
+        #             (
+
+        query = """
         SELECT 
-            username, first_name, last_name, email, 
-            country, language, gender, birthdate, 
+            id, username, first_name, last_name, email, 
+            country, city, language, gender, birthdate, 
             registered_at, notifications
-            (
-                SELECT array_agg(g.name)
-                FROM user_genres ug
-                JOIN genres g ON ug.genre_id = g.id
-                WHERE ug.user_id = user_data.id
-            ) as genres
         FROM user_data 
         WHERE id = $1;
         """
-        user_data = await conn.fetchrow(user_query, user_id)
-        if not user_data:
+        profile_data = await conn.fetchrow(query, user_id)
+        if not profile_data:
             return JSONResponse({"error": "User not found"}, status_code=404)
 
-        # Get user's role
-        role_query = """
-        SELECT role_id, status
-        FROM user_roles
-        WHERE user_id = $1;
+        # Format output
+        result = dict(profile_data)
+        dynamic_data = {key: value for key, value in result.items() if key in base_dynamic_fields}
+        static_data = {key: value for key, value in result.items() if key in base_static_fields}
+
+        response = {"dynamic_data": dynamic_data, "static_data": static_data}
+
+        
+        return response
+
+@app.get("/user/{user_id}")
+async def get_user_profile(user_id: int):
+    """Fetch user profile data"""
+
+    pool = await db.get_connection()
+    async with pool.acquire() as conn:
+        query = """
+            SELECT
+                id, attendance, 
+                (
+                    SELECT array_agg(g.name)
+                    FROM user_genres ug
+                    JOIN genres g ON ug.genre_id = g.id
+                    WHERE ug.user_id = user_data.id
+                ) as genres
+            FROM user_data 
+            WHERE id = $1;
         """
-        role_data = await conn.fetchrow(role_query, user_id)
+        user_data = await conn.fetchrow(query, user_id)
+        if not user_data:
+            return JSONResponse({"error": "User not found"}, status_code=404)
         
+        # format output
         result = dict(user_data)
-        if role_data:
-            result["role_id"] = role_data["role_id"]
-            result["status"] = role_data["status"]
-        
-        return result
+        dynamic_data = {key: value for key, value in result.items() if key in user_dynamic_fields}
+        static_data = {key: value for key, value in result.items() if key in user_static_fields}
+        response = {"dynamic_data": dynamic_data, "static_data": static_data}   
+
+        return response
+
 
 @app.get("/dj/{user_id}")
 async def get_dj_profile(user_id: int):
