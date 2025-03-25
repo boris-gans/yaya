@@ -14,7 +14,8 @@ BEGIN
             'age', EXTRACT(YEAR FROM AGE(NEW.birthdate)),
             'gender', NEW.gender,
             'language', NEW.language,
-            'location', NEW.location
+            'country', NEW.country,
+            'city', NEW.city
         )
     );
     RETURN NEW;
