@@ -486,36 +486,18 @@ async def essential_write_modify(
 
     # data['user_id'] = current_user.get('id')
     # data['role_id'] = current_user.get('role_id')
-
+    # obj_data['user_id'] = 96
+    # obj_data['role_id'] = 3
+    # print(f"\nUser {current_user['id']} modifying DB with operation: {obj_type}")
 
     obj_type = data.get("type")
     obj_data = data.get("data")
     print(obj_data)
 
-    # obj_data['user_id'] = 96
-    # obj_data['role_id'] = 3
-    # print(f"\nUser {current_user['id']} modifying DB with operation: {obj_type}")
-
     handler = private_handlers.get(obj_type, lambda x: {"error": f"Unknown type: {obj_type}"})  
     response = handler(obj_data)
     print(response)
     
-    # UPDATE: GET RID OF BACKGROUND WRITES FOR SAVES. JUST DO DB TRIGGER ON UPDATE TO __ TABLE
-
-    # Call background_write for successful event follows
-    # if obj_type == "follow_event" and response.get('success') == True:
-    #     try:
-    #         # Call background_write with metric_type "save" for the event
-    #         # Include is_decrement flag if this is an unfollow operation
-    #         asyncio.create_task(background_write(data={
-    #             "event_id": obj_data.get("event_id"),
-    #             "metric_type": "save",
-    #             "is_decrement": obj_data.get('delete', False)  # True for unfollow, False for follow
-    #         }))
-    #         print(f"Background write task created for {'decrementing' if obj_data.get('delete', False) else 'incrementing'} save metric on event {obj_data.get('event_id')}")
-    #     except Exception as e:
-    #         print(f"Failed to create background write task: {e}")
-            # Continue with the response regardless of background_write success
     
     if response.get('Success') == 'false':
         raise HTTPException(status_code=500, detail=response.get('Message'))
@@ -702,12 +684,13 @@ async def get_user_profile(
 # ----------- Recommendation Endpoints ---------------
 @app.get("/recommendations/{user_id}")
 async def get_user_recommendations(
-    current_user: dict = Depends(get_current_user)
+    # current_user: dict = Depends(get_current_user)
 ):
     """Asynchronously fetch and process recommendations."""
     async with httpx.AsyncClient() as client:
         try:
-            user_id = current_user.get('id')
+            # user_id = current_user.get('id')
+            user_id = 73
 
             user_data_task = create_task(
                 client.get(
