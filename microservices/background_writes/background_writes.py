@@ -5,7 +5,7 @@ import json
 import os
 from dotenv import load_dotenv
 import threading
-from typing import Dict, List
+from typing import Dict, List, Any
 import time
 import signal
 import sys
@@ -23,7 +23,7 @@ DB_CONFIG = {
 }
 
 # Metric buffers
-metric_buffers: Dict[str, List[Dict]] = {
+metric_buffers: Dict[str, List[Dict[str, Any]]] = {
     "click": [],
     "impression": [],
     "share": [],
@@ -72,7 +72,8 @@ def cleanup(channel, connection):
 
 def flush_metrics(metric_type: str):
     """
-    Flush metrics by updating existing event records with accumulated counts
+    Flush metrics by updating existing event records with accumulated counts.
+    Now handles both increments and decrements appropriately.
     """
     print(f"Attempting to acquire lock for flushing {metric_type} metrics")
     try:
@@ -85,30 +86,56 @@ def flush_metrics(metric_type: str):
             conn = db_pool.getconn()
             try:
                 with conn.cursor() as cur:
-                    # Group metrics by event_id and count them
-                    event_counts = {}
+                    # Group metrics by event_id and calculate net change
+                    event_changes = {}
                     for metric in metric_buffers[metric_type]:
                         event_id = metric['event_id']
-                        event_counts[event_id] = event_counts.get(event_id, 0) + 1
-
-                    # Update each event with its accumulated count
-                    for event_id, count in event_counts.items():
-                        print(cur.mogrify(f"""
-                            BEGIN;
-                            SELECT num_{metric_type}s FROM event_data WHERE id = %s FOR UPDATE;
-                            UPDATE event_data SET num_{metric_type}s = num_{metric_type}s + %s WHERE id = %s;
-                            COMMIT;
-                        """, (event_id, count, event_id)).decode())
-
+                        # If is_decrement is True, count as -1, otherwise count as +1
+                        change = -1 if metric.get('is_decrement', False) else 1
+                        event_changes[event_id] = event_changes.get(event_id, 0) + change
+                        
+                    # Filter out events with zero net change
+                    event_changes = {k: v for k, v in event_changes.items() if v != 0}
+                    
+                    if not event_changes:
+                        print(f"No net changes to flush for {metric_type}")
+                        metric_buffers[metric_type] = []
+                        return
+                        
+                    # Update each event with its net change
+                    for event_id, change in event_changes.items():
+                        # First check the current value to avoid negative results if needed
                         cur.execute(f"""
-                            BEGIN;
-                            SELECT num_{metric_type}s FROM event_data WHERE id = %s FOR UPDATE;
-                            UPDATE event_data SET num_{metric_type}s = num_{metric_type}s + %s WHERE id = %s;
-                            COMMIT;
-                        """, (event_id, count, event_id))
+                            SELECT num_{metric_type}s FROM event_data WHERE id = %s;
+                        """, (event_id,))
+                        result = cur.fetchone()
+                        
+                        if result:
+                            current_value = result[0] or 0
+                            # If change is negative and would make the total negative, adjust to 0
+                            if change < 0 and current_value + change < 0:
+                                change = -current_value  # This will make the new value 0
+                        
+                            print(cur.mogrify(f"""
+                                BEGIN;
+                                SELECT num_{metric_type}s FROM event_data WHERE id = %s FOR UPDATE;
+                                UPDATE event_data SET num_{metric_type}s = num_{metric_type}s + %s WHERE id = %s;
+                                COMMIT;
+                            """, (event_id, change, event_id)).decode())
+
+                            cur.execute(f"""
+                                BEGIN;
+                                SELECT num_{metric_type}s FROM event_data WHERE id = %s FOR UPDATE;
+                                UPDATE event_data SET num_{metric_type}s = num_{metric_type}s + %s WHERE id = %s;
+                                COMMIT;
+                            """, (event_id, change, event_id))
+                            
+                            print(f"Updated event {event_id} with {change} {metric_type} {'decrements' if change < 0 else 'increments'}")
+                        else:
+                            print(f"Event {event_id} not found, skipping")
                     
                     conn.commit()
-                    print(f"Updated {len(event_counts)} events with {metric_type} metrics")
+                    print(f"Updated {len(event_changes)} events with {metric_type} metrics")
                     metric_buffers[metric_type] = []
 
             except Exception as e:

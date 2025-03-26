@@ -239,6 +239,7 @@ message PurchaseTicketRequest {
 message FollowDjData {
   int32 user_id = 1;
   int32 dj_id = 2;
+  bool delete = 3;
 }
 
 message FollowDjRequest {
@@ -248,6 +249,7 @@ message FollowDjRequest {
 message FollowEventData {
   int32 user_id = 1;
   int32 event_id = 2;
+  bool delete = 3;
 }
 
 message FollowEventRequest {

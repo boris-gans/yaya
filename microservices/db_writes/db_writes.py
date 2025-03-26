@@ -981,24 +981,57 @@ class WriteService(write_service_pb2_grpc.WriteServiceServicer):
             
             user_id = request.data.user_id
             dj_id = request.data.dj_id
+            delete = request.data.delete
             
             with conn.cursor() as cursor:
-                # 1. Insert into user_dj_followers
-                follow_query = """
-                INSERT INTO user_dj_followers (user_id, dj_id)
-                VALUES (%s, %s);
-                """
-                cursor.execute(follow_query, (user_id, dj_id))
-                print(f"User {user_id} is now following DJ {dj_id}")
-                
-                # 2. Increment interested_count in the dj table
-                update_query = """
-                UPDATE dj
-                SET interested_count = interested_count + 1
-                WHERE id = %s;
-                """
-                cursor.execute(update_query, (dj_id,))
-                print(f"Incremented interested_count for DJ {dj_id}")
+                if delete:
+                    # 1. Confirm relationship exists
+                    check_query = """
+                    SELECT EXISTS (
+                        SELECT 1 FROM user_dj_followers 
+                        WHERE user_id = %s AND dj_id = %s
+                    );
+                    """
+                    cursor.execute(check_query, (user_id, dj_id))
+                    relationship_exists = cursor.fetchone()[0]
+                    if not relationship_exists:
+                        return write_service_pb2.CreateEntityResponse(
+                            success=False,
+                            message="Relationship does not exist, unable to delete"
+                        )
+                    else:
+                        delete_query = """
+                        DELETE FROM user_dj_followers 
+                        WHERE user_id = %s AND dj_id = %s;
+                        """
+                        cursor.execute(delete_query, (user_id, dj_id))
+                        print(f"User {user_id} is now unfollowing DJ {dj_id}")
+
+                        decrement_query = """
+                        UPDATE dj
+                        SET interested_count = interested_count - 1
+                        WHERE id = %s;
+                        """
+                        cursor.execute(decrement_query, (dj_id,))
+                        print(f"Decremented interested_count for DJ {dj_id}")
+                        
+                else:
+                    # 1. Insert into user_dj_followers
+                    follow_query = """
+                    INSERT INTO user_dj_followers (user_id, dj_id)
+                    VALUES (%s, %s);
+                    """
+                    cursor.execute(follow_query, (user_id, dj_id))
+                    print(f"User {user_id} is now following DJ {dj_id}")
+                    
+                    # 2. Increment interested_count in the dj table
+                    increment_query = """
+                    UPDATE dj
+                    SET interested_count = interested_count + 1
+                    WHERE id = %s;
+                    """
+                    cursor.execute(increment_query, (dj_id,))
+                    print(f"Incremented interested_count for DJ {dj_id}")
                 
                 conn.commit()
                 print("DJ follow transaction completed successfully!\n")
@@ -1028,15 +1061,40 @@ class WriteService(write_service_pb2_grpc.WriteServiceServicer):
             
             user_id = request.data.user_id
             event_id = request.data.event_id
+            delete = request.data.delete
             
             with conn.cursor() as cursor:
-                # Insert into user_event_followers
-                follow_query = """
-                INSERT INTO user_event_followers (user_id, event_id)
-                VALUES (%s, %s);
-                """
-                cursor.execute(follow_query, (user_id, event_id))
-                print(f"User {user_id} is now following event {event_id}")
+                if delete:
+                    # 1. Confirm relationship exists
+                    check_query = """
+                    SELECT EXISTS (
+                        SELECT 1 FROM user_event_followers 
+                        WHERE user_id = %s AND event_id = %s
+                    );
+                    """
+                    cursor.execute(check_query, (user_id, event_id))
+                    relationship_exists = cursor.fetchone()[0]
+                    if not relationship_exists:
+                        return write_service_pb2.CreateEntityResponse(
+                            success=False,
+                            message="Relationship does not exist, unable to delete"
+                        )
+                    else:
+                        delete_query = """
+                        DELETE FROM user_event_followers 
+                        WHERE user_id = %s AND event_id = %s;
+                        """
+                        cursor.execute(delete_query, (user_id, event_id))
+                        print(f"User {user_id} is now unfollowing event {event_id}")
+
+                else:
+                    # Insert into user_event_followers
+                    follow_query = """
+                    INSERT INTO user_event_followers (user_id, event_id)
+                    VALUES (%s, %s);
+                    """
+                    cursor.execute(follow_query, (user_id, event_id))
+                    print(f"User {user_id} is now following event {event_id}")
                 
                 conn.commit()
                 print("Event follow transaction completed successfully!\n")
