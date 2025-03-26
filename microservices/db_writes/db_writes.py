@@ -1014,6 +1014,14 @@ class WriteService(write_service_pb2_grpc.WriteServiceServicer):
                         """
                         cursor.execute(decrement_query, (dj_id,))
                         print(f"Decremented interested_count for DJ {dj_id}")
+
+                        conn.commit()
+                        print("DJ unfollow transaction completed successfully!\n")
+                        
+                        return write_service_pb2.CreateEntityResponse(
+                            success=True,
+                            message=f"Successfully unfollowed DJ {dj_id}"
+                        )
                         
                 else:
                     # 1. Insert into user_dj_followers
@@ -1033,13 +1041,13 @@ class WriteService(write_service_pb2_grpc.WriteServiceServicer):
                     cursor.execute(increment_query, (dj_id,))
                     print(f"Incremented interested_count for DJ {dj_id}")
                 
-                conn.commit()
-                print("DJ follow transaction completed successfully!\n")
-                
-                return write_service_pb2.CreateEntityResponse(
-                    success=True,
-                    message=f"Successfully following DJ {dj_id}"
-                )
+                    conn.commit()
+                    print("DJ follow transaction completed successfully!\n")
+                    
+                    return write_service_pb2.CreateEntityResponse(
+                        success=True,
+                        message=f"Successfully following DJ {dj_id}"
+                    )
                 
         except Exception as e:
             conn.rollback()
@@ -1087,6 +1095,14 @@ class WriteService(write_service_pb2_grpc.WriteServiceServicer):
                         cursor.execute(delete_query, (user_id, event_id))
                         print(f"User {user_id} is now unfollowing event {event_id}")
 
+                        conn.commit()
+                        print("Event unfollow transaction completed successfully!\n")
+                        
+                        return write_service_pb2.CreateEntityResponse(
+                            success=True,
+                            message=f"Successfully unfollowed event {event_id}"
+                        )
+
                 else:
                     # Insert into user_event_followers
                     follow_query = """
@@ -1096,13 +1112,13 @@ class WriteService(write_service_pb2_grpc.WriteServiceServicer):
                     cursor.execute(follow_query, (user_id, event_id))
                     print(f"User {user_id} is now following event {event_id}")
                 
-                conn.commit()
-                print("Event follow transaction completed successfully!\n")
-                
-                return write_service_pb2.CreateEntityResponse(
-                    success=True,
-                    message=f"Successfully following event {event_id}"
-                )
+                    conn.commit()
+                    print("Event follow transaction completed successfully!\n")
+                    
+                    return write_service_pb2.CreateEntityResponse(
+                        success=True,
+                        message=f"Successfully following event {event_id}"
+                    )
                 
         except Exception as e:
             conn.rollback()

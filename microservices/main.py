@@ -490,7 +490,7 @@ async def essential_write_modify(
 
     obj_type = data.get("type")
     obj_data = data.get("data")
-    print(obj_data['delete'])
+    print(obj_data)
 
     # obj_data['user_id'] = 96
     # obj_data['role_id'] = 3
@@ -500,6 +500,8 @@ async def essential_write_modify(
     response = handler(obj_data)
     print(response)
     
+    # UPDATE: GET RID OF BACKGROUND WRITES FOR SAVES. JUST DO DB TRIGGER ON UPDATE TO __ TABLE
+
     # Call background_write for successful event follows
     if obj_type == "follow_event" and response.get('success') == True:
         try:

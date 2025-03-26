@@ -78,9 +78,9 @@ def flush_metrics(metric_type: str):
     print(f"Attempting to acquire lock for flushing {metric_type} metrics")
     try:
         with buffer_lock:
-            print(f"Lock acquired for {metric_type} flush")
+            print(f"\nLock acquired for {metric_type} flush")
             if not metric_buffers[metric_type]:
-                print(f"No metrics to flush for {metric_type}")
+                print(f"No metrics to flush for {metric_type}\n")
                 return
 
             conn = db_pool.getconn()
@@ -216,8 +216,8 @@ def start_consumer():
                 on_message_callback=callback
             )
 
-        print('✅ Connected to RabbitMQ')
-        print('📝 Waiting for metrics. Press CTRL+C to exit')
+        print('\n\n✅ Connected to RabbitMQ')
+        print('📝 Waiting for metrics. Press CTRL+C to exit\n')
         
         # Start periodic flush
         def periodic_flush():
@@ -225,6 +225,7 @@ def start_consumer():
                 time.sleep(60)  # Flush every minute
                 if not is_shutting_down:  # Check again after sleep
                     for metric_type in metric_buffers.keys():
+                        print(f"\nFlushing {metric_type} metrics")
                         flush_metrics(metric_type)
 
         flush_thread = threading.Thread(target=periodic_flush, daemon=True)
