@@ -503,18 +503,18 @@ async def essential_write_modify(
     # UPDATE: GET RID OF BACKGROUND WRITES FOR SAVES. JUST DO DB TRIGGER ON UPDATE TO __ TABLE
 
     # Call background_write for successful event follows
-    if obj_type == "follow_event" and response.get('success') == True:
-        try:
-            # Call background_write with metric_type "save" for the event
-            # Include is_decrement flag if this is an unfollow operation
-            asyncio.create_task(background_write(data={
-                "event_id": obj_data.get("event_id"),
-                "metric_type": "save",
-                "is_decrement": obj_data.get('delete', False)  # True for unfollow, False for follow
-            }))
-            print(f"Background write task created for {'decrementing' if obj_data.get('delete', False) else 'incrementing'} save metric on event {obj_data.get('event_id')}")
-        except Exception as e:
-            print(f"Failed to create background write task: {e}")
+    # if obj_type == "follow_event" and response.get('success') == True:
+    #     try:
+    #         # Call background_write with metric_type "save" for the event
+    #         # Include is_decrement flag if this is an unfollow operation
+    #         asyncio.create_task(background_write(data={
+    #             "event_id": obj_data.get("event_id"),
+    #             "metric_type": "save",
+    #             "is_decrement": obj_data.get('delete', False)  # True for unfollow, False for follow
+    #         }))
+    #         print(f"Background write task created for {'decrementing' if obj_data.get('delete', False) else 'incrementing'} save metric on event {obj_data.get('event_id')}")
+    #     except Exception as e:
+    #         print(f"Failed to create background write task: {e}")
             # Continue with the response regardless of background_write success
     
     if response.get('Success') == 'false':
