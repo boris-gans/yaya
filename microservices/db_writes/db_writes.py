@@ -985,8 +985,8 @@ class WriteService(write_service_pb2_grpc.WriteServiceServicer):
             with conn.cursor() as cursor:
                 # 1. Insert into user_dj_followers
                 follow_query = """
-                INSERT INTO user_dj_followers (user_id, dj_id, followed_at)
-                VALUES (%s, %s, NOW());
+                INSERT INTO user_dj_followers (user_id, dj_id)
+                VALUES (%s, %s);
                 """
                 cursor.execute(follow_query, (user_id, dj_id))
                 print(f"User {user_id} is now following DJ {dj_id}")
@@ -1032,8 +1032,8 @@ class WriteService(write_service_pb2_grpc.WriteServiceServicer):
             with conn.cursor() as cursor:
                 # Insert into user_event_followers
                 follow_query = """
-                INSERT INTO user_event_followers (user_id, event_id, followed_at)
-                VALUES (%s, %s, NOW());
+                INSERT INTO user_event_followers (user_id, event_id)
+                VALUES (%s, %s);
                 """
                 cursor.execute(follow_query, (user_id, event_id))
                 print(f"User {user_id} is now following event {event_id}")
