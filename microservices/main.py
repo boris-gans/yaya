@@ -490,14 +490,27 @@ async def essential_write_modify(
 
     obj_type = data.get("type")
     obj_data = data.get("data")
+    print(obj_data)
+
     # obj_data['user_id'] = 96
     # obj_data['role_id'] = 3
-    print(obj_data)
-    
     # print(f"\nUser {current_user['id']} modifying DB with operation: {obj_type}")
+
     handler = private_handlers.get(obj_type, lambda x: {"error": f"Unknown type: {obj_type}"})  
     response = handler(obj_data)
     print(response)
+    
+    # Call background_write 'save' for successful event follows
+    if obj_type == "follow_event" and response.get('success') == True:
+        try:
+            asyncio.create_task(background_write(data={
+                "event_id": obj_data.get("event_id"),
+                "metric_type": "save"
+            }))
+            print(f"Background write task created for save metric on event {obj_data.get('event_id')}")
+        except Exception as e:
+            print(f"Failed to create background write task: {e}")
+    
     if response.get('Success') == 'false':
         raise HTTPException(status_code=500, detail=response.get('Message'))
     return response

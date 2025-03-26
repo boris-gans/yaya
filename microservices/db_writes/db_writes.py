@@ -974,9 +974,88 @@ class WriteService(write_service_pb2_grpc.WriteServiceServicer):
 
     def FollowDj(self, request, context):
         print(f"Received data: {request.data}")
+        conn = pool.getconn()
+        try:
+            print("\nStarting DJ follow transaction...")
+            conn.autocommit = False  # Start transaction
+            
+            user_id = request.data.user_id
+            dj_id = request.data.dj_id
+            
+            with conn.cursor() as cursor:
+                # 1. Insert into user_dj_followers
+                follow_query = """
+                INSERT INTO user_dj_followers (user_id, dj_id, followed_at)
+                VALUES (%s, %s, NOW());
+                """
+                cursor.execute(follow_query, (user_id, dj_id))
+                print(f"User {user_id} is now following DJ {dj_id}")
+                
+                # 2. Increment interested_count in the dj table
+                update_query = """
+                UPDATE dj
+                SET interested_count = interested_count + 1
+                WHERE id = %s;
+                """
+                cursor.execute(update_query, (dj_id,))
+                print(f"Incremented interested_count for DJ {dj_id}")
+                
+                conn.commit()
+                print("DJ follow transaction completed successfully!\n")
+                
+                return write_service_pb2.CreateEntityResponse(
+                    success=True,
+                    message=f"Successfully following DJ {dj_id}"
+                )
+                
+        except Exception as e:
+            conn.rollback()
+            print(f"Exception during DJ follow: {e}")
+            return write_service_pb2.CreateEntityResponse(
+                success=False,
+                message=f"Error following DJ: {str(e)}"
+            )
+        finally:
+            conn.autocommit = True
+            pool.putconn(conn)
     
     def FollowEvent(self, request, context):
         print(f"Received data: {request.data}")
+        conn = pool.getconn()
+        try:
+            print("\nStarting event follow transaction...")
+            conn.autocommit = False  # Start transaction
+            
+            user_id = request.data.user_id
+            event_id = request.data.event_id
+            
+            with conn.cursor() as cursor:
+                # Insert into user_event_followers
+                follow_query = """
+                INSERT INTO user_event_followers (user_id, event_id, followed_at)
+                VALUES (%s, %s, NOW());
+                """
+                cursor.execute(follow_query, (user_id, event_id))
+                print(f"User {user_id} is now following event {event_id}")
+                
+                conn.commit()
+                print("Event follow transaction completed successfully!\n")
+                
+                return write_service_pb2.CreateEntityResponse(
+                    success=True,
+                    message=f"Successfully following event {event_id}"
+                )
+                
+        except Exception as e:
+            conn.rollback()
+            print(f"Exception during event follow: {e}")
+            return write_service_pb2.CreateEntityResponse(
+                success=False,
+                message=f"Error following event: {str(e)}"
+            )
+        finally:
+            conn.autocommit = True
+            pool.putconn(conn)
 
 
 
