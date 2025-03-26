@@ -236,6 +236,24 @@ message PurchaseTicketRequest {
   PurchaseTicketData data = 1;
 }
 
+message FollowDjData {
+  int32 user_id = 1;
+  int32 dj_id = 2;
+}
+
+message FollowDjRequest {
+  FollowDjData data = 1;
+}
+
+message FollowEventData {
+  int32 user_id = 1;
+  int32 event_id = 2;
+}
+
+message FollowEventRequest {
+  FollowEventData data = 1;
+}
+
 service WriteService {
   rpc CreateEvent(CreateEventRequest) returns (CreateEntityResponse);
   rpc CreateUser(CreateUserRequest) returns (CreateEntityResponse);
@@ -247,6 +265,8 @@ service WriteService {
   rpc DeleteEvent(DeleteEventRequest) returns (CreateEntityResponse);
   rpc UpdateProfile(UpdateProfileRequest) returns (CreateEntityResponse);
   rpc PurchaseTicket(PurchaseTicketRequest) returns (CreateEntityResponse);
+  rpc FollowDj(FollowDjRequest) returns (CreateEntityResponse);
+  rpc FollowEvent(FollowEventRequest) returns (CreateEntityResponse);
 }
 
 message CreateEntityResponse {

@@ -972,7 +972,13 @@ class WriteService(write_service_pb2_grpc.WriteServiceServicer):
             conn.autocommit = True
             pool.putconn(conn)
 
-        
+    def FollowDj(self, request, context):
+        print(f"Received data: {request.data}")
+    
+    def FollowEvent(self, request, context):
+        print(f"Received data: {request.data}")
+
+
 
 # Run gRPC Server
 def serve():

@@ -194,13 +194,30 @@ def handle_ticket_purchase(data):
     response = grpc_stub.PurchaseTicket(request)
     return {"Success": response.success, "Message": response.message}
 
+def handle_follow_dj(data):
+    print(f"Sync data: {data}")
+
+    request = write_service_pb2.FollowDjRequest(data=data)
+    response = grpc_stub.FollowDj(request)
+    return {"Success": response.success, "Message": response.message}
+
+def handle_follow_event(data):
+    print(f"Sync data: {data}")
+
+    request = write_service_pb2.FollowEventRequest(data=data)
+    response = grpc_stub.FollowEvent(request)
+    return {"Success": response.success, "Message": response.message}
+
+
 private_handlers = {
     "event": handle_event,
     "publish_event": handle_publish,
     "dj_event": handle_dj_event,
     "delete_event": handle_event_delete,
     "update_profile": handle_update_profile,
-    "ticket_purchase": handle_ticket_purchase
+    "ticket_purchase": handle_ticket_purchase,
+    "follow_dj": handle_follow_dj,
+    "follow_event": handle_follow_event
 }
 
 public_handlers = {
@@ -463,7 +480,7 @@ async def essential_write_modify(
     # current_user: dict = Depends(get_current_user)
 ):
     """
-    Handles modifications to existing entities.
+    Handles modifications to existing entities (users, DJs, venues, organizers).
     Requires JWT authentication.
     """
 

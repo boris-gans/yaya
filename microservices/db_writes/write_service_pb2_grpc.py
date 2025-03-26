@@ -84,6 +84,16 @@ class WriteServiceStub(object):
                 request_serializer=write__service__pb2.PurchaseTicketRequest.SerializeToString,
                 response_deserializer=write__service__pb2.CreateEntityResponse.FromString,
                 _registered_method=True)
+        self.FollowDj = channel.unary_unary(
+                '/WriteService/FollowDj',
+                request_serializer=write__service__pb2.FollowDjRequest.SerializeToString,
+                response_deserializer=write__service__pb2.CreateEntityResponse.FromString,
+                _registered_method=True)
+        self.FollowEvent = channel.unary_unary(
+                '/WriteService/FollowEvent',
+                request_serializer=write__service__pb2.FollowEventRequest.SerializeToString,
+                response_deserializer=write__service__pb2.CreateEntityResponse.FromString,
+                _registered_method=True)
 
 
 class WriteServiceServicer(object):
@@ -149,6 +159,18 @@ class WriteServiceServicer(object):
         context.set_details('Method not implemented!')
         raise NotImplementedError('Method not implemented!')
 
+    def FollowDj(self, request, context):
+        """Missing associated documentation comment in .proto file."""
+        context.set_code(grpc.StatusCode.UNIMPLEMENTED)
+        context.set_details('Method not implemented!')
+        raise NotImplementedError('Method not implemented!')
+
+    def FollowEvent(self, request, context):
+        """Missing associated documentation comment in .proto file."""
+        context.set_code(grpc.StatusCode.UNIMPLEMENTED)
+        context.set_details('Method not implemented!')
+        raise NotImplementedError('Method not implemented!')
+
 
 def add_WriteServiceServicer_to_server(servicer, server):
     rpc_method_handlers = {
@@ -200,6 +222,16 @@ def add_WriteServiceServicer_to_server(servicer, server):
             'PurchaseTicket': grpc.unary_unary_rpc_method_handler(
                     servicer.PurchaseTicket,
                     request_deserializer=write__service__pb2.PurchaseTicketRequest.FromString,
+                    response_serializer=write__service__pb2.CreateEntityResponse.SerializeToString,
+            ),
+            'FollowDj': grpc.unary_unary_rpc_method_handler(
+                    servicer.FollowDj,
+                    request_deserializer=write__service__pb2.FollowDjRequest.FromString,
+                    response_serializer=write__service__pb2.CreateEntityResponse.SerializeToString,
+            ),
+            'FollowEvent': grpc.unary_unary_rpc_method_handler(
+                    servicer.FollowEvent,
+                    request_deserializer=write__service__pb2.FollowEventRequest.FromString,
                     response_serializer=write__service__pb2.CreateEntityResponse.SerializeToString,
             ),
     }
@@ -472,6 +504,60 @@ class WriteService(object):
             target,
             '/WriteService/PurchaseTicket',
             write__service__pb2.PurchaseTicketRequest.SerializeToString,
+            write__service__pb2.CreateEntityResponse.FromString,
+            options,
+            channel_credentials,
+            insecure,
+            call_credentials,
+            compression,
+            wait_for_ready,
+            timeout,
+            metadata,
+            _registered_method=True)
+
+    @staticmethod
+    def FollowDj(request,
+            target,
+            options=(),
+            channel_credentials=None,
+            call_credentials=None,
+            insecure=False,
+            compression=None,
+            wait_for_ready=None,
+            timeout=None,
+            metadata=None):
+        return grpc.experimental.unary_unary(
+            request,
+            target,
+            '/WriteService/FollowDj',
+            write__service__pb2.FollowDjRequest.SerializeToString,
+            write__service__pb2.CreateEntityResponse.FromString,
+            options,
+            channel_credentials,
+            insecure,
+            call_credentials,
+            compression,
+            wait_for_ready,
+            timeout,
+            metadata,
+            _registered_method=True)
+
+    @staticmethod
+    def FollowEvent(request,
+            target,
+            options=(),
+            channel_credentials=None,
+            call_credentials=None,
+            insecure=False,
+            compression=None,
+            wait_for_ready=None,
+            timeout=None,
+            metadata=None):
+        return grpc.experimental.unary_unary(
+            request,
+            target,
+            '/WriteService/FollowEvent',
+            write__service__pb2.FollowEventRequest.SerializeToString,
             write__service__pb2.CreateEntityResponse.FromString,
             options,
             channel_credentials,
