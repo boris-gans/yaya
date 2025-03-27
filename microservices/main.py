@@ -427,6 +427,7 @@ async def login(creds: dict = Body(...)):
         raise HTTPException(status_code=401, detail="Missing credentials")
     
     user_data = await confirm_login_postgres(identifier, pw)
+    print(user_data)
     # Make sure username is included in user_data
     if 'username' not in user_data:
         user_data['username'] = user_data.get('email', identifier)
