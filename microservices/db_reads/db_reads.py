@@ -29,10 +29,10 @@ REDIS_PASSWORD = os.getenv("REDIS_PASSWORD")
 
 # --------------- Constants ----------------
 base_dynamic_fields = {"username", "first_name", "last_name", "email", "country", "city", "language", "gender", "birthdate"}
-base_static_fields = {"user_id", "registered_at", "notifications"}
+base_static_fields = {"user_id", "registered_at"}
 
 user_dynamic_fields = {"genres"}
-user_static_fields = {"attendance"}
+user_static_fields = {"attendance", "notifications"}
 
 dj_dynamic_fields = {"alias", "bio", "country", "phone", "socials"}
 dj_static_fields = {"dj_id","interested_count", "notifications", "completed_events_count", "metrics", "language_distribution", "genre_dist"}
@@ -631,7 +631,7 @@ async def get_profile_data(user_id: int):
         SELECT 
             id AS user_id, username, first_name, last_name, email, 
             country, city, language, gender, birthdate, 
-            registered_at, notifications
+            registered_at
         FROM user_data 
         WHERE id = $1;
         """
@@ -831,6 +831,7 @@ async def get_dj_events(user_id: int):
             return JSONResponse({"error": "DJ not found"}, status_code=404)
         
         dj_id = dj_result['id']
+        print(f"Dj id: {dj_id}")
         
         # Get all event IDs for this DJ
         events_query = """
@@ -857,7 +858,7 @@ async def get_dj_events(user_id: int):
                 o.name as organizer_name,
                 o.phone as organizer_phone,
                 o.email as organizer_email,
-                o.website as organizer_website
+                o.website as organizer_website,
                 pe.completed,
                 pe.event_poster,
                 pe.bio,
@@ -990,7 +991,7 @@ async def get_venue_events(user_id: int):
                 o.name as organizer_name,
                 o.phone as organizer_phone,
                 o.email as organizer_email,
-                o.website as organizer_website
+                o.website as organizer_website,
                 pe.completed,
                 pe.event_poster,
                 pe.bio,

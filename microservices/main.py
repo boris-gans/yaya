@@ -738,8 +738,7 @@ async def get_user_events(
         try:
             user_id = current_user.get('id')
             role_id = current_user.get('role_id')
-            # user_id = 96
-            # role_id = 3
+
             if not role_id:
                 raise HTTPException(status_code=400, detail="User role not found")
 
