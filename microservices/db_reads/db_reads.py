@@ -29,19 +29,19 @@ REDIS_PASSWORD = os.getenv("REDIS_PASSWORD")
 
 # --------------- Constants ----------------
 base_dynamic_fields = {"username", "first_name", "last_name", "email", "country", "city", "language", "gender", "birthdate"}
-base_static_fields = {"id", "registered_at", "notifications"}
+base_static_fields = {"user_id", "registered_at", "notifications"}
 
 user_dynamic_fields = {"genres"}
 user_static_fields = {"attendance"}
 
 dj_dynamic_fields = {"alias", "bio", "country", "phone", "socials"}
-dj_static_fields = {"id","interested_count", "notifications", "completed_events_count", "metrics", "language_distribution", "genre_dist"}
+dj_static_fields = {"dj_id","interested_count", "notifications", "completed_events_count", "metrics", "language_distribution", "genre_dist"}
 
 venue_dynamic_fields = {"name", "capacity", "table_count"}
-venue_static_fields = {"id", "address", "city", "state", "zip", "country", "features", "type_distribution", "language_distribution"}
+venue_static_fields = {"venue_id", "address", "city", "state", "zip", "country", "features", "type_distribution", "language_distribution"}
 
 organizer_dynamic_fields = {"name", "phone", "country", "city", "website"}
-organizer_static_fields = {"id", "notifications", "features"}
+organizer_static_fields = {"org_id", "notifications", "features"}
 
 
 class CustomJSONEncoder(json.JSONEncoder):
@@ -629,7 +629,7 @@ async def get_profile_data(user_id: int):
 
         query = """
         SELECT 
-            id, username, first_name, last_name, email, 
+            id AS user_id, username, first_name, last_name, email, 
             country, city, language, gender, birthdate, 
             registered_at, notifications
         FROM user_data 
@@ -657,7 +657,7 @@ async def get_user_profile(user_id: int):
     async with pool.acquire() as conn:
         query = """
             SELECT
-                id, attendance, 
+                id AS user_id, attendance, 
                 (
                     SELECT array_agg(g.name)
                     FROM user_genres ug
@@ -686,7 +686,7 @@ async def get_dj_profile(user_id: int):
     async with pool.acquire() as conn:
         query = """
             SELECT
-                id,
+                id AS dj_id,
                 alias,
                 bio,
                 country,
@@ -746,7 +746,7 @@ async def get_venue_profile(user_id: int):
     async with pool.acquire() as conn:
         query = """
         SELECT
-            id,
+            id AS venue_id,
             name,
             capacity,
             table_count,
@@ -792,7 +792,7 @@ async def get_organizer_profile(user_id: int):
     pool = await db.get_connection()
     async with pool.acquire() as conn:
         query = """
-            SELECT name, phone, country, city, website, notifications, features, id
+            SELECT name, phone, country, city, website, notifications, features, id AS org_id
             FROM organizer 
             WHERE user_id = $1;
         """
