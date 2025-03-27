@@ -161,7 +161,7 @@ async def get_events():
         featured_events = [event for event in events if event.get('featured')]
         
         print(f"Found {len(events)} events, {len(featured_events)} are featured")
-        
+        print(events)
         response = {
             "events": events,
             "featured_events": featured_events
@@ -181,6 +181,7 @@ async def get_djs():
         d.country,
         d.interested_count,
         d.created_at,
+        d.profile_pic,
         ds.website,
         ds.soundcloud,
         ds.spotify,
@@ -226,7 +227,8 @@ async def get_venues():
         country,
         table_count,
         created_at,
-        completed_events_count
+        completed_events_count,
+        profile_pic
     FROM venues
     ORDER BY country;
     """
@@ -255,7 +257,8 @@ async def get_venues():
                 "country": venue_dict["country"],
                 "table_count": venue_dict["table_count"],
                 "created_at": venue_dict["created_at"],
-                "completed_events_count": venue_dict["completed_events_count"]
+                "completed_events_count": venue_dict["completed_events_count"],
+                "profile_pic": venue_dict['profile_pic']
             })
         
         print(f"Fetched venues grouped by country: {grouped_venues}")
@@ -453,6 +456,7 @@ async def get_venue_events(venue_id: int):
         v.zip as venue_zip,
         v.country as venue_country,
         v.capacity as venue_capacity,
+        v.profile_pic as profile_pic,
         o.name as organizer_name,
         (
             SELECT array_agg(g.name)
