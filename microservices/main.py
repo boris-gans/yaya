@@ -477,18 +477,18 @@ async def essential_write_register(data: dict = Body(...)):
 @app.post("/essential_write/modify")
 async def essential_write_modify(
     data: dict = Body(...),
-    # current_user: dict = Depends(get_current_user)
+    current_user: dict = Depends(get_current_user)
 ):
     """
     Handles modifications to existing entities (users, DJs, venues, organizers).
     Requires JWT authentication.
     """
 
-    # data['user_id'] = current_user.get('id')
-    # data['role_id'] = current_user.get('role_id')
+    data['user_id'] = current_user.get('id')
+    data['role_id'] = current_user.get('role_id')
     # obj_data['user_id'] = 96
     # obj_data['role_id'] = 3
-    # print(f"\nUser {current_user['id']} modifying DB with operation: {obj_type}")
+    print(f"\nUser {current_user['id']} modifying DB with operation: {obj_type}")
 
     obj_type = data.get("type")
     obj_data = data.get("data")
@@ -629,6 +629,7 @@ async def get_user_profile(
             user_id = current_user.get('id')
             role_id = current_user.get('role_id')
             # role_id = 3
+            # user_id = 96
             response = await client.get(
                 f"{DB_READER_SERVICE_URL}/profile/{user_id}",
                 timeout=10.0
@@ -684,13 +685,13 @@ async def get_user_profile(
 # ----------- Recommendation Endpoints ---------------
 @app.get("/recommendations/{user_id}")
 async def get_user_recommendations(
-    # current_user: dict = Depends(get_current_user)
+    current_user: dict = Depends(get_current_user)
 ):
     """Asynchronously fetch and process recommendations."""
     async with httpx.AsyncClient() as client:
         try:
-            # user_id = current_user.get('id')
-            user_id = 73
+            user_id = current_user.get('id')
+            # user_id = 73
 
             user_data_task = create_task(
                 client.get(
@@ -732,6 +733,8 @@ async def get_user_events(
         try:
             user_id = current_user.get('id')
             role_id = current_user.get('role_id')
+            # user_id = 96
+            # role_id = 3
             if not role_id:
                 raise HTTPException(status_code=400, detail="User role not found")
 
