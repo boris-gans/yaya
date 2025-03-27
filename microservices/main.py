@@ -422,7 +422,7 @@ async def confirm_login_postgres(username_or_email: str, pw: str):
 @app.post("/login")
 async def login(creds: dict = Body(...)):
     identifier = creds.get("username")  # This could be either username or email
-    pw = creds.get("pw")
+    pw = creds.get("password")
     if not identifier or not pw:
         raise HTTPException(status_code=401, detail="Missing credentials")
     
@@ -433,6 +433,7 @@ async def login(creds: dict = Body(...)):
     
     token = create_jwt(user_data, timedelta(minutes=int(ACCESS_TOKEN_EXPIRE_MINUTES)))
     refresh_token = create_refresh_token(user_data)
+    print(f"Access token: {token}, Refresh token: {refresh_token}")
     return {
         "access_token": token, 
         "refresh_token": refresh_token,
@@ -619,17 +620,21 @@ async def proxy_get_events_by_entity(entity_type: str, entity_id: int):
 
 @app.get("/profile/{user_id}")
 async def get_user_profile(
-    current_user: dict = Depends(get_current_user),
-    # user_id: int
+    user_id: int,
+    current_user: dict = Depends(get_current_user)
 ):
     """Proxy request for getting user profile data. Private endpoint."""
     async with httpx.AsyncClient() as client:
         try:
             print(current_user)
-            user_id = current_user.get('id')
+            token_user_id = current_user.get('id')
             role_id = current_user.get('role_id')
-            # role_id = 3
-            # user_id = 96
+            
+            # double check auth
+            if user_id != token_user_id:
+                print("\nGTFO!")
+                raise HTTPException(status_code=404, detail="User_id mismatch")
+
             response = await client.get(
                 f"{DB_READER_SERVICE_URL}/profile/{user_id}",
                 timeout=10.0
