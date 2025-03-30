@@ -179,6 +179,7 @@ async def get_djs():
         d.alias,
         d.bio,
         d.country,
+        d.city,
         d.interested_count,
         d.created_at,
         d.profile_pic,
@@ -198,7 +199,6 @@ async def get_djs():
     FROM dj d
     LEFT JOIN dj_socials ds ON d.id = ds.dj_id;
     """
-    
     pool = await db.get_connection()
     async with pool.acquire() as conn:
         results = await conn.fetch(query)
@@ -209,6 +209,52 @@ async def get_djs():
         json_str = json.dumps(djs, cls=CustomJSONEncoder)
         return JSONResponse(content=json.loads(json_str))
 
+@app.get("/dj/{dj_id}")
+async def get_djs(dj_id: int):
+    """Fetch all DJs with their socials and genres. Public endpoint"""
+    query = """
+    SELECT 
+        d.id AS dj_id,
+        d.user_id AS user_id,
+        d.alias,
+        d.bio,
+        d.country,
+        d.city,
+        d.interested_count,
+        d.created_at,
+        d.profile_pic,
+        d.monthly_streams,
+        d.social_followers,
+        ds.website,
+        ds.soundcloud,
+        ds.spotify,
+        ds.facebook,
+        ds.instagram,
+        ds.snapchat,
+        ds.x,
+        (
+            SELECT array_agg(g.name)
+            FROM dj_genres dg
+            JOIN genres g ON dg.genre_id = g.id
+            WHERE dg.dj_id = d.id
+        ) as genres
+    FROM dj d
+    LEFT JOIN dj_socials ds ON d.id = ds.dj_id
+    WHERE d.id = $1;
+    """
+
+    pool = await db.get_connection()
+    async with pool.acquire() as conn:
+        result = await conn.fetchrow(query, dj_id)
+        if not result:
+            return JSONResponse({"error": "DJ not found"}, status_code=404)
+        
+        dj = dict(result)
+        print(f"Found DJ with id {dj_id}")
+
+        json_str = json.dumps(dj, cls=CustomJSONEncoder)
+        return JSONResponse(content=json.loads(json_str))
+        
 
 # --------------- Direct Proxy Endpoints ----------------
 @app.get("/venues")
@@ -225,9 +271,6 @@ async def get_venues():
         state,
         zip,
         country,
-        table_count,
-        created_at,
-        completed_events_count,
         profile_pic
     FROM venues
     ORDER BY country;
@@ -255,14 +298,50 @@ async def get_venues():
                 "state": venue_dict["state"],
                 "zip": venue_dict["zip"],
                 "country": venue_dict["country"],
-                "table_count": venue_dict["table_count"],
-                "created_at": venue_dict["created_at"],
-                "completed_events_count": venue_dict["completed_events_count"],
                 "profile_pic": venue_dict['profile_pic']
             })
         
         print(f"Fetched venues grouped by country: {grouped_venues}")
         json_str = json.dumps(grouped_venues, cls=CustomJSONEncoder)
+        return JSONResponse(content=json.loads(json_str))
+
+@app.get("/venue/{venue_id}")
+async def get_djs(venue_id: int):
+    """Fetch all DJs with their socials and genres. Public endpoint"""
+    query = """
+    SELECT 
+        id,
+        name,
+        capacity,
+        address,
+        city,
+        state,
+        zip,
+        country,
+        table_count,
+        created_at, 
+        completed_events_count,
+        profile_pic,
+        (
+            SELECT array_agg(vtd.name)
+            FROM venue_type_def vtd
+            JOIN venue_types vt ON vt.type_id = vtd.id
+            WHERE vt.venue_id = v.id
+        ) as venue_types
+    FROM venues v
+    WHERE v.id = $1;
+    """
+
+    pool = await db.get_connection()
+    async with pool.acquire() as conn:
+        result = await conn.fetchrow(query, venue_id)
+        if not result:
+            return JSONResponse({"error": "Venue not found"}, status_code=404)
+        
+        venue = dict(result)
+        print(f"Found DJ with id {venue_id}")
+
+        json_str = json.dumps(venue, cls=CustomJSONEncoder)
         return JSONResponse(content=json.loads(json_str))
 
 @app.get("/event/{event_id}")
@@ -278,9 +357,14 @@ async def get_event_details(event_id: int):
         e.id as event_id,
         e.event_name,
         e.date,
-        e.genre_dist,
         e.pre_event_poster,
         e.pre_bio,
+        (
+            SELECT array_agg(g.name)
+            FROM event_genres eg
+            JOIN genres g ON eg.genre_id = g.id
+            WHERE eg.event_id = e.id
+        ) as genres,
         v.id as venue_id,
         v.name as venue_name,
         v.capacity,
@@ -351,7 +435,7 @@ async def get_event_details(event_id: int):
             "event_id": event_dict["event_id"],
             "event_name": event_dict["event_name"],
             "date": event_dict["date"],
-            "genre_dist": json.loads(event_dict["genre_dist"]) if event_dict["genre_dist"] else None,
+            "genres": event_dict["genres"] if event_dict["genres"] else None,
             "status": event_dict["status"],
             "venue": {
                 "venue_id": event_dict["venue_id"],

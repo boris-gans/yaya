@@ -535,7 +535,7 @@ async def background_write(data: dict):
     
 
 
-# --------------- Streaming Read Endpoints ----------------
+# ----------- Direct Proxy Read Endpoints ---------------
 @app.get("/events")
 async def proxy_get_events():
     """Proxy request for getting all events. Public endpoint."""
@@ -572,9 +572,22 @@ async def proxy_get_djs():
             return JSONResponse(content=response.json())
         except httpx.HTTPError as e:
             raise HTTPException(status_code=500, detail=str(e))
+        
+@app.get("/dj/{dj_id}")
+async def proxy_get_djs(dj_id: int):
+    """Proxy request for getting a DJ and their socials. Public endpoint."""
+    async with httpx.AsyncClient() as client:
+        try:
+            response = await client.get(f"{DB_READER_SERVICE_URL}/dj/{dj_id}", timeout=30.0)
+            
+            if response.status_code != 200:
+                raise HTTPException(status_code=response.status_code, detail=f"Failed to fetch DJ with id {dj_id}")
+            
+            return JSONResponse(content=response.json())
+        except httpx.HTTPError as e:
+            raise HTTPException(status_code=500, detail=str(e))
 
 
-# ----------- Direct Proxy Read Endpoints ---------------
 @app.get("/venues")
 async def proxy_get_venues():
     """Proxy request for getting all venues grouped by country. Public endpoint."""
@@ -587,6 +600,20 @@ async def proxy_get_venues():
             
             return JSONResponse(content=response.json())
             
+        except httpx.HTTPError as e:
+            raise HTTPException(status_code=500, detail=str(e))
+
+@app.get("/venue/{venue_id}")
+async def proxy_get_djs(venue_id: int):
+    """Proxy request for getting a DJ and their socials. Public endpoint."""
+    async with httpx.AsyncClient() as client:
+        try:
+            response = await client.get(f"{DB_READER_SERVICE_URL}/venue/{venue_id}", timeout=30.0)
+            
+            if response.status_code != 200:
+                raise HTTPException(status_code=response.status_code, detail=f"Failed to fetch DJ with id {venue_id}")
+            
+            return JSONResponse(content=response.json())
         except httpx.HTTPError as e:
             raise HTTPException(status_code=500, detail=str(e))
 
