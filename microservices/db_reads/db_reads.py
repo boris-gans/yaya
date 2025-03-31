@@ -390,85 +390,169 @@ async def get_djs(venue_id: int):
         return JSONResponse(content=json.loads(json_str))
 
 @app.get("/event/{event_id}")
-async def get_event_details(event_id: int):
+async def get_event_details(
+    event_id: int,
+    user_id: Optional[int] = Query(None),
+    role_id: Optional[int] = Query(None)
+    ):
     """
         Fetch detailed event info including venue, organizer, and DJs. 
         Public endpoint.
         THIS IS WHERE TICKETING INFO WILL BE DISPLAYED
     """
+    if user_id is None and role_id is None:
+        print("Public")
+        query = """
+            SELECT 
+                e.id as event_id,
+                e.event_name,
+                e.date,
+                e.pre_event_poster,
+                e.pre_bio,
+                (
+                    SELECT array_agg(g.name)
+                    FROM event_genres eg
+                    JOIN genres g ON eg.genre_id = g.id
+                    WHERE eg.event_id = e.id
+                ) as genres,
+                v.id as venue_id,
+                v.name as venue_name,
+                v.capacity,
+                v.address,
+                v.city,
+                v.state,
+                v.zip,
+                v.country,
+                v.type_distribution,
+                o.id as organizer_id,
+                o.name as organizer_name,
+                o.website as organizer_website,
+                pe.sold_out,
+                pe.event_poster,
+                pe.bio,
+                pe.published_at,
+                CASE 
+                    WHEN pe.event_id IS NOT NULL THEN 'Published'
+                    ELSE 'Pending'
+                END as status,
+                (
+                    SELECT jsonb_agg(dj_info)
+                    FROM (
+                        SELECT 
+                            d.id AS dj_id,
+                            d.alias,
+                            d.bio,
+                            d.country,
+                            d.interested_count,
+                            d.created_at,
+                            ds.website,
+                            ds.soundcloud,
+                            ds.spotify,
+                            ds.facebook,
+                            ds.instagram,
+                            ds.snapchat,
+                            ds.x,
+                            (
+                                SELECT array_agg(g.name)
+                                FROM dj_genres dg
+                                JOIN genres g ON dg.genre_id = g.id
+                                WHERE dg.dj_id = d.id
+                            ) as genres
+                        FROM event_dj ed
+                        JOIN dj d ON ed.dj_id = d.id
+                        LEFT JOIN dj_socials ds ON d.id = ds.dj_id
+                        WHERE ed.event_id = e.id
+                    ) dj_info
+                ) as djs
+            FROM event_data e
+            JOIN venues v ON e.venue_id = v.id
+            JOIN organizer o ON e.organizer_id = o.id
+            LEFT JOIN published_events pe ON e.id = pe.event_id
+            WHERE e.id = $1;
+        """
+    else:
+        print(f"U id: {user_id}, R id: {role_id}")
+        query = """
+            SELECT 
+                e.id as event_id,
+                e.event_name,
+                e.date,
+                e.pre_event_poster,
+                e.pre_bio,
+                (
+                    SELECT array_agg(g.name)
+                    FROM event_genres eg
+                    JOIN genres g ON eg.genre_id = g.id
+                    WHERE eg.event_id = e.id
+                ) as genres,
+                v.id as venue_id,
+                v.name as venue_name,
+                v.capacity,
+                v.address,
+                v.city,
+                v.state,
+                v.zip,
+                v.country,
+                v.type_distribution,
+                o.id as organizer_id,
+                o.name as organizer_name,
+                o.website as organizer_website,
+                pe.sold_out,
+                pe.event_poster,
+                pe.bio,
+                pe.published_at,
+                CASE 
+                    WHEN pe.event_id IS NOT NULL THEN 'Published'
+                    ELSE 'Pending'
+                END as status,
+                (
+                    SELECT jsonb_agg(dj_info)
+                    FROM (
+                        SELECT 
+                            d.id AS dj_id,
+                            d.alias,
+                            d.bio,
+                            d.country,
+                            d.interested_count,
+                            d.created_at,
+                            ds.website,
+                            ds.soundcloud,
+                            ds.spotify,
+                            ds.facebook,
+                            ds.instagram,
+                            ds.snapchat,
+                            ds.x,
+                            (
+                                SELECT array_agg(g.name)
+                                FROM dj_genres dg
+                                JOIN genres g ON dg.genre_id = g.id
+                                WHERE dg.dj_id = d.id
+                            ) as genres
+                        FROM event_dj ed
+                        JOIN dj d ON ed.dj_id = d.id
+                        LEFT JOIN dj_socials ds ON d.id = ds.dj_id
+                        WHERE ed.event_id = e.id
+                    ) dj_info
+                ) as djs,
+                CASE 
+                    WHEN uef.user_id IS NOT NULL THEN true 
+                END AS following
+            FROM event_data e
+            JOIN venues v ON e.venue_id = v.id
+            JOIN organizer o ON e.organizer_id = o.id
+            LEFT JOIN published_events pe ON e.id = pe.event_id
+            LEFT JOIN user_event_followers uef ON e.id = uef.event_id AND uef.user_id = $1
+            WHERE e.id = $2;
+        """
 
-    query = """
-    SELECT 
-        e.id as event_id,
-        e.event_name,
-        e.date,
-        e.pre_event_poster,
-        e.pre_bio,
-        (
-            SELECT array_agg(g.name)
-            FROM event_genres eg
-            JOIN genres g ON eg.genre_id = g.id
-            WHERE eg.event_id = e.id
-        ) as genres,
-        v.id as venue_id,
-        v.name as venue_name,
-        v.capacity,
-        v.address,
-        v.city,
-        v.state,
-        v.zip,
-        v.country,
-        v.type_distribution,
-        o.id as organizer_id,
-        o.name as organizer_name,
-        o.website as organizer_website,
-        pe.sold_out,
-        pe.event_poster,
-        pe.bio,
-        pe.published_at,
-        CASE 
-            WHEN pe.event_id IS NOT NULL THEN 'Published'
-            ELSE 'Pending'
-        END as status,
-        (
-            SELECT jsonb_agg(dj_info)
-            FROM (
-                SELECT 
-                    d.id AS dj_id,
-                    d.alias,
-                    d.bio,
-                    d.country,
-                    d.interested_count,
-                    d.created_at,
-                    ds.website,
-                    ds.soundcloud,
-                    ds.spotify,
-                    ds.facebook,
-                    ds.instagram,
-                    ds.snapchat,
-                    ds.x,
-                    (
-                        SELECT array_agg(g.name)
-                        FROM dj_genres dg
-                        JOIN genres g ON dg.genre_id = g.id
-                        WHERE dg.dj_id = d.id
-                    ) as genres
-                FROM event_dj ed
-                JOIN dj d ON ed.dj_id = d.id
-                LEFT JOIN dj_socials ds ON d.id = ds.dj_id
-                WHERE ed.event_id = e.id
-            ) dj_info
-        ) as djs
-    FROM event_data e
-    JOIN venues v ON e.venue_id = v.id
-    JOIN organizer o ON e.organizer_id = o.id
-    LEFT JOIN published_events pe ON e.id = pe.event_id
-    WHERE e.id = $1;
-    """
-    
+
     pool = await db.get_connection()
     async with pool.acquire() as conn:
-        result = await conn.fetchrow(query, event_id)
+        if user_id is not None:
+            result = await conn.fetchrow(query, user_id, event_id)
+        else:
+            result = await conn.fetchrow(query, event_id)
+
         if not result:
             return JSONResponse({"error": "Event not found"}, status_code=404)
         
@@ -482,6 +566,7 @@ async def get_event_details(event_id: int):
             "date": event_dict["date"],
             "genres": event_dict["genres"] if event_dict["genres"] else None,
             "status": event_dict["status"],
+            "following": event_dict['following'] if event_dict['following'] else None,
             "venue": {
                 "venue_id": event_dict["venue_id"],
                 "name": event_dict["venue_name"],

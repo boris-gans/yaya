@@ -579,6 +579,7 @@ async def proxy_get_events(
 
 @app.get("/djs")
 async def proxy_get_djs():
+    # ADD FOLLOWING FOR DJS
     """Proxy request for getting all DJs and their socials. Public endpoint."""
     async with httpx.AsyncClient() as client:
         try:
@@ -593,6 +594,7 @@ async def proxy_get_djs():
         
 @app.get("/dj/{dj_id}")
 async def proxy_get_djs(dj_id: int):
+    # ADD FOLLOWING FOR DJS
     """Proxy request for getting a DJ and their socials. Public endpoint."""
     async with httpx.AsyncClient() as client:
         try:
@@ -636,12 +638,27 @@ async def proxy_get_djs(venue_id: int):
             raise HTTPException(status_code=500, detail=str(e))
 
 @app.get("/event/{event_id}")
-async def proxy_get_event_details(event_id: int):
+async def proxy_get_event_details(
+    event_id: int,
+    current_user: Optional[dict] = Security(get_current_user)
+):
     """Proxy request for getting detailed event info (venue & organizer). Public endpoint."""
 
     async with httpx.AsyncClient() as client:
         try:
-            response = await client.get(f"{DB_READER_SERVICE_URL}/event/{event_id}", timeout=10.0)
+            if current_user is None:
+                response = await client.get(f"{DB_READER_SERVICE_URL}/event/{event_id}", timeout=10.0)
+
+            else:
+                user_id = current_user.get('id')
+                role_id = current_user.get('role_id')
+                params = {
+                    "user_id": user_id,
+                    "role_id": role_id
+                }
+                print(f"Calling /event/{event_id} with {params}")
+                response = await client.get(f"{DB_READER_SERVICE_URL}/event/{event_id}", params=params, timeout=30.0)
+            
 
             if response.status_code != 200:
                 raise HTTPException(status_code=response.status_code, detail="Failed to fetch detailed event")
@@ -682,6 +699,8 @@ async def get_user_profile(
     """Proxy request for getting user profile data. Private endpoint."""
     async with httpx.AsyncClient() as client:
         try:
+            if current_user is None:
+                raise HTTPException(status_code=400, detail="No token provided")
             print(current_user)
             token_user_id = current_user.get('id')
             role_id = current_user.get('role_id')
@@ -746,13 +765,17 @@ async def get_user_profile(
 # ----------- Recommendation Endpoints ---------------
 @app.get("/recommendations/{user_id}")
 async def get_user_recommendations(
+    user_id: int,
     current_user: dict = Depends(get_current_user)
 ):
     """Asynchronously fetch and process recommendations."""
     async with httpx.AsyncClient() as client:
         try:
-            user_id = current_user.get('id')
-            # user_id = 73
+            if current_user is None:
+                raise HTTPException(status_code=400, detail="No token provided")
+            user_id_token = current_user.get('id')
+            if user_id_token != user_id:
+                raise HTTPException(status_code=400, detail="User_id and token mismatch")
 
             user_data_task = create_task(
                 client.get(
@@ -795,9 +818,11 @@ async def get_user_events(
 
     async with httpx.AsyncClient() as client:
         try:
+            if current_user is None:
+                raise HTTPException(status_code=400, detail="No token provided")
+            
             user_id_provided = current_user.get('id')
             role_id = current_user.get('role_id')
-
             if not role_id:
                 raise HTTPException(status_code=400, detail="User role not found")
             if user_id_provided != user_id:
