@@ -229,10 +229,12 @@ public_handlers = {
 
 
 # --------------- JWT Util Functions ----------------
-security = HTTPBearer()
+security = HTTPBearer(auto_error=False)
 
 # Decode and validate JWT; return user data encoded in token
 async def get_current_user(credentials: HTTPAuthorizationCredentials = Security(security)):
+    if credentials is None:
+        return None
     try:
         token = credentials.credentials
         success, payload = decode_jwt(token)
@@ -485,6 +487,8 @@ async def essential_write_modify(
     Handles modifications to existing entities (users, DJs, venues, organizers).
     Requires JWT authentication.
     """
+    if current_user is None:
+        raise HTTPException(status_code=400, detail="No token provided")
 
     data['user_id'] = current_user.get('id')
     data['role_id'] = current_user.get('role_id')
@@ -540,11 +544,23 @@ async def background_write(data: dict):
 
 # ----------- Direct Proxy Read Endpoints ---------------
 @app.get("/events")
-async def proxy_get_events():
+async def proxy_get_events(
+    current_user: Optional[dict] = Security(get_current_user)
+):
     """Proxy request for getting all events. Public endpoint."""
     async with httpx.AsyncClient() as client:
         try:
-            response = await client.get(f"{DB_READER_SERVICE_URL}/events", timeout=30.0)
+            if current_user is None:
+                response = await client.get(f"{DB_READER_SERVICE_URL}/events", timeout=30.0)
+            else:
+                user_id = current_user.get('id')
+                role_id = current_user.get('role_id')
+                params = {
+                    "user_id": user_id,
+                    "role_id": role_id
+                }
+                print(f"Calling /events with {params}")
+                response = await client.get(f"{DB_READER_SERVICE_URL}/events", params=params, timeout=30.0)
             
             if response.status_code != 200:
                 raise HTTPException(status_code=response.status_code, detail="Failed to fetch events")
@@ -769,18 +785,23 @@ async def get_user_recommendations(
         except httpx.HTTPError as e:
             raise HTTPException(status_code=500, detail=str(e))
 
-@app.get("/events/{user_id}")
+@app.get("/my-events/{user_id}")
 async def get_user_events(
+    user_id: int,
     current_user: dict = Depends(get_current_user)
 ):
-    """Proxy request for getting user's events based on their role."""
+    """Proxy request for getting user's events based on their role.
+    Only for DJs, Venues, or Organizers for viewing their upcoming/past events"""
+
     async with httpx.AsyncClient() as client:
         try:
-            user_id = current_user.get('id')
+            user_id_provided = current_user.get('id')
             role_id = current_user.get('role_id')
 
             if not role_id:
                 raise HTTPException(status_code=400, detail="User role not found")
+            if user_id_provided != user_id:
+                raise HTTPException(status_code=400, detail="Token and user_id mismatch")
 
             # Route to appropriate endpoint based on role
             if role_id == ROLE_IDS["DJ"]:

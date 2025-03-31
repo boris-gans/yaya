@@ -120,41 +120,86 @@ async def stream_query(query: str, *params):
 
 # ADD FEATURED BOOL TO EVENT_DATA; FILTER RESPONSE ACCORDINGLY (j duplicate featured events into seperate object)
 @app.get("/events")
-async def get_events():
-    """Fetch all events with their display-relevant data and genres. Public endpoint"""
+async def get_events(
+    user_id: Optional[int] = Query(None),
+    role_id: Optional[int] = Query(None),
+):
+    """Fetch all events with their display-relevant data and genres. Public endpoint.
+       If user provides JWT, then make sure to include if they're following the event or not."""
 
-    query = """
-    SELECT 
-        e.id,
-        e.event_name,
-        e.date,
-        v.name as venue_name,
-        v.address as venue_address,
-        v.city as venue_city,
-        v.state as venue_state,
-        v.zip as venue_zip,
-        v.country as venue_country,
-        v.capacity as venue_capacity,
-        o.name as organizer_name,
-        (
-            SELECT array_agg(g.name)
-            FROM event_genres eg
-            JOIN genres g ON eg.genre_id = g.id
-            WHERE eg.event_id = e.id
-        ) as genres,
-        pe.event_poster,
-        pe.bio,
-        pe.featured,
-        pe.sold_out
-    FROM published_events pe
-    JOIN event_data e ON pe.event_id = e.id
-    JOIN venues v ON e.venue_id = v.id
-    JOIN organizer o ON e.organizer_id = o.id;
-    """
+    if user_id is None and role_id is None:
+        print("Public")
+        query = """
+            SELECT 
+                e.id,
+                e.event_name,
+                e.date,
+                v.name as venue_name,
+                v.address as venue_address,
+                v.city as venue_city,
+                v.state as venue_state,
+                v.zip as venue_zip,
+                v.country as venue_country,
+                v.capacity as venue_capacity,
+                o.name as organizer_name,
+                (
+                    SELECT array_agg(g.name)
+                    FROM event_genres eg
+                    JOIN genres g ON eg.genre_id = g.id
+                    WHERE eg.event_id = e.id
+                ) as genres,
+                pe.event_poster,
+                pe.bio,
+                pe.featured,
+                pe.sold_out
+            FROM published_events pe
+            JOIN event_data e ON pe.event_id = e.id
+            JOIN venues v ON e.venue_id = v.id
+            JOIN organizer o ON e.organizer_id = o.id;
+        """
+    else:
+        print(f"U id: {user_id}, R id: {role_id}")
+        query = """
+            SELECT 
+                e.id,
+                e.event_name,
+                e.date,
+                v.name as venue_name,
+                v.address as venue_address,
+                v.city as venue_city,
+                v.state as venue_state,
+                v.zip as venue_zip,
+                v.country as venue_country,
+                v.capacity as venue_capacity,
+                o.name as organizer_name,
+                (
+                    SELECT array_agg(g.name)
+                    FROM event_genres eg
+                    JOIN genres g ON eg.genre_id = g.id
+                    WHERE eg.event_id = e.id
+                ) as genres,
+                pe.event_poster,
+                pe.bio,
+                pe.featured,
+                pe.sold_out,
+                CASE 
+                    WHEN uef.user_id IS NOT NULL THEN true 
+                END AS following
+            FROM published_events pe
+            JOIN event_data e ON pe.event_id = e.id
+            JOIN venues v ON e.venue_id = v.id
+            JOIN organizer o ON e.organizer_id = o.id
+            LEFT JOIN user_event_followers uef ON e.id = uef.event_id AND uef.user_id = $1;
+        """
+
     
     pool = await db.get_connection()
     async with pool.acquire() as conn:
-        results = await conn.fetch(query)
+        if user_id:
+            results = await conn.fetch(query, user_id)
+        else:
+            results = await conn.fetch(query)
+
         events = [dict(row) for row in results]
         
         # Create a separate list for featured events
