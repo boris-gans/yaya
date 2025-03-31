@@ -490,10 +490,12 @@ async def essential_write_modify(
     data['role_id'] = current_user.get('role_id')
     # obj_data['user_id'] = 96
     # obj_data['role_id'] = 3
-    print(f"\nUser {current_user['id']} modifying DB with operation: {obj_type}")
+    # print(data)
 
     obj_type = data.get("type")
     obj_data = data.get("data")
+
+    print(f"\nUser {current_user['id']} modifying DB with operation: {obj_type}")
     print(obj_data)
 
     handler = private_handlers.get(obj_type, lambda x: {"error": f"Unknown type: {obj_type}"})  
@@ -516,6 +518,7 @@ async def background_write(data: dict):
 
     try:
         async with asyncio.timeout(0.3): # 0.5 seconds timeout to prevent blocking
+            print(f"Background writing: {data.get("metric_type")}, {data.get("event_id")}")
             # Queue the task in Celery
             task = publish_metric.delay(
                 event_id=data.get("event_id"),
@@ -547,7 +550,6 @@ async def proxy_get_events():
                 raise HTTPException(status_code=response.status_code, detail="Failed to fetch events")
             
             events_data = response.json()
-            print(events_data)
 
             # Process impressions for all events
             for event in events_data.get("events", []):
@@ -624,8 +626,12 @@ async def proxy_get_event_details(event_id: int):
     async with httpx.AsyncClient() as client:
         try:
             response = await client.get(f"{DB_READER_SERVICE_URL}/event/{event_id}", timeout=10.0)
+
+            if response.status_code != 200:
+                raise HTTPException(status_code=response.status_code, detail="Failed to fetch detailed event")
+            # print(response.json())
+            
             await background_write(data={"event_id": event_id, "metric_type": "click"})
-            print(response.json())
             return JSONResponse(content=response.json(), status_code=response.status_code)
         except httpx.HTTPError as e:
             raise HTTPException(status_code=500, detail=str(e))
@@ -640,9 +646,15 @@ async def proxy_get_events_by_entity(entity_type: str, entity_id: int):
     async with httpx.AsyncClient() as client:
         try:
             response = await client.get(f"{DB_READER_SERVICE_URL}/events/{route}/{entity_id}", timeout=10.0)
-            print(response.json())
+            # print(response.json())
+            if response.status_code != 200:
+                raise HTTPException(status_code=response.status_code, detail="Failed to fetch events by entity")
+            events_data = response.json()
+            for event in events_data.get("events", []):
+                event_id = event.get("id")
+                await background_write(data={"event_id": event_id, "metric_type": "impression"})
 
-            return JSONResponse(content=response.json(), status_code=response.status_code)
+            return JSONResponse(content=events_data, status_code=response.status_code)
         except httpx.HTTPError as e:
             raise HTTPException(status_code=500, detail=str(e))
 
