@@ -122,12 +122,11 @@ async def stream_query(query: str, *params):
 @app.get("/events")
 async def get_events(
     user_id: Optional[int] = Query(None),
-    role_id: Optional[int] = Query(None),
 ):
     """Fetch all events with their display-relevant data and genres. Public endpoint.
        If user provides JWT, then make sure to include if they're following the event or not."""
 
-    if user_id is None and role_id is None:
+    if user_id is None:
         print("Public")
         query = """
             SELECT 
@@ -158,7 +157,7 @@ async def get_events(
             JOIN organizer o ON e.organizer_id = o.id;
         """
     else:
-        print(f"U id: {user_id}, R id: {role_id}")
+        print(f"U id: {user_id}")
         query = """
             SELECT 
                 e.id,
@@ -195,7 +194,7 @@ async def get_events(
     
     pool = await db.get_connection()
     async with pool.acquire() as conn:
-        if user_id:
+        if user_id is not None:
             results = await conn.fetch(query, user_id)
         else:
             results = await conn.fetch(query)
@@ -216,37 +215,78 @@ async def get_events(
         return JSONResponse(content=json.loads(json_str))
 
 @app.get("/djs")
-async def get_djs():
+async def get_djs(
+    user_id: Optional[int] = Query(None)
+):
     """Fetch all DJs with their socials and genres. Public endpoint"""
-    query = """
-    SELECT 
-        d.id AS dj_id,
-        d.alias,
-        d.bio,
-        d.country,
-        d.city,
-        d.interested_count,
-        d.created_at,
-        d.profile_pic,
-        ds.website,
-        ds.soundcloud,
-        ds.spotify,
-        ds.facebook,
-        ds.instagram,
-        ds.snapchat,
-        ds.x,
-        (
-            SELECT array_agg(g.name)
-            FROM dj_genres dg
-            JOIN genres g ON dg.genre_id = g.id
-            WHERE dg.dj_id = d.id
-        ) as genres
-    FROM dj d
-    LEFT JOIN dj_socials ds ON d.id = ds.dj_id;
-    """
+    if user_id is None:
+        print("public")
+        query = """
+            SELECT 
+                d.id AS dj_id,
+                d.alias,
+                d.bio,
+                d.country,
+                d.city,
+                d.interested_count,
+                d.created_at,
+                d.profile_pic,
+                ds.website,
+                ds.soundcloud,
+                ds.spotify,
+                ds.facebook,
+                ds.instagram,
+                ds.snapchat,
+                ds.x,
+                (
+                    SELECT array_agg(g.name)
+                    FROM dj_genres dg
+                    JOIN genres g ON dg.genre_id = g.id
+                    WHERE dg.dj_id = d.id
+                ) as genres
+            FROM dj d
+            LEFT JOIN dj_socials ds ON d.id = ds.dj_id;
+        """
+    else:
+        print(f"u id: {user_id}")
+        query = """
+            SELECT 
+                d.id AS dj_id,
+                d.alias,
+                d.bio,
+                d.country,
+                d.city,
+                d.interested_count,
+                d.created_at,
+                d.profile_pic,
+                ds.website,
+                ds.soundcloud,
+                ds.spotify,
+                ds.facebook,
+                ds.instagram,
+                ds.snapchat,
+                ds.x,
+                (
+                    SELECT array_agg(g.name)
+                    FROM dj_genres dg
+                    JOIN genres g ON dg.genre_id = g.id
+                    WHERE dg.dj_id = d.id
+                ) as genres,
+                CASE
+                    WHEN udf.user_id IS NOT NULL THEN true
+                END AS following
+            FROM dj d
+            LEFT JOIN dj_socials ds ON d.id = ds.dj_id
+            LEFT JOIN user_dj_followers udf ON d.id = udf.dj_id AND udf.user_id = $1;
+        """
+
     pool = await db.get_connection()
     async with pool.acquire() as conn:
-        results = await conn.fetch(query)
+        if user_id is not None:
+            results = await conn.fetch(query, user_id)
+        else:
+            results = await conn.fetch(query)
+
         djs = [dict(row) for row in results]
         
         print(f"Found {len(djs)} DJs")
@@ -255,42 +295,87 @@ async def get_djs():
         return JSONResponse(content=json.loads(json_str))
 
 @app.get("/dj/{dj_id}")
-async def get_djs(dj_id: int):
+async def get_djs(
+    dj_id: int,
+    user_id: Optional[int] = Query(None)
+):
     """Fetch all DJs with their socials and genres. Public endpoint"""
-    query = """
-    SELECT 
-        d.id AS dj_id,
-        d.user_id AS user_id,
-        d.alias,
-        d.bio,
-        d.country,
-        d.city,
-        d.interested_count,
-        d.created_at,
-        d.profile_pic,
-        d.monthly_streams,
-        d.social_followers,
-        ds.website,
-        ds.soundcloud,
-        ds.spotify,
-        ds.facebook,
-        ds.instagram,
-        ds.snapchat,
-        ds.x,
-        (
-            SELECT array_agg(g.name)
-            FROM dj_genres dg
-            JOIN genres g ON dg.genre_id = g.id
-            WHERE dg.dj_id = d.id
-        ) as genres
-    FROM dj d
-    LEFT JOIN dj_socials ds ON d.id = ds.dj_id
-    WHERE d.id = $1;
-    """
+    if user_id is None:
+        print("public")
+        query = """
+            SELECT 
+                d.id AS dj_id,
+                d.user_id AS user_id,
+                d.alias,
+                d.bio,
+                d.country,
+                d.city,
+                d.interested_count,
+                d.created_at,
+                d.profile_pic,
+                d.monthly_streams,
+                d.social_followers,
+                ds.website,
+                ds.soundcloud,
+                ds.spotify,
+                ds.facebook,
+                ds.instagram,
+                ds.snapchat,
+                ds.x,
+                (
+                    SELECT array_agg(g.name)
+                    FROM dj_genres dg
+                    JOIN genres g ON dg.genre_id = g.id
+                    WHERE dg.dj_id = d.id
+                ) as genres
+            FROM dj d
+            LEFT JOIN dj_socials ds ON d.id = ds.dj_id
+            WHERE d.id = $1;
+        """
+    else:
+        print(f"U id: {user_id}")
+        query = """
+            SELECT 
+                d.id AS dj_id,
+                d.user_id AS user_id,
+                d.alias,
+                d.bio,
+                d.country,
+                d.city,
+                d.interested_count,
+                d.created_at,
+                d.profile_pic,
+                d.monthly_streams,
+                d.social_followers,
+                ds.website,
+                ds.soundcloud,
+                ds.spotify,
+                ds.facebook,
+                ds.instagram,
+                ds.snapchat,
+                ds.x,
+                (
+                    SELECT array_agg(g.name)
+                    FROM dj_genres dg
+                    JOIN genres g ON dg.genre_id = g.id
+                    WHERE dg.dj_id = d.id
+                ) as genres,
+                CASE
+                    WHEN udf.user_id IS NOT NULL THEN true
+                END AS following
+            FROM dj d
+            LEFT JOIN dj_socials ds ON d.id = ds.dj_id
+            LEFT JOIN user_dj_followers udf ON d.id = udf.dj_id AND udf.user_id = $1
+            WHERE d.id = $2;
+        """
 
     pool = await db.get_connection()
     async with pool.acquire() as conn:
-        result = await conn.fetchrow(query, dj_id)
+        if user_id is not None:
+            result = await conn.fetchrow(query, user_id, dj_id)
+        else:
+            result = await conn.fetchrow(query, dj_id)
+
         if not result:
             return JSONResponse({"error": "DJ not found"}, status_code=404)
         
@@ -392,15 +477,14 @@ async def get_djs(venue_id: int):
 @app.get("/event/{event_id}")
 async def get_event_details(
     event_id: int,
-    user_id: Optional[int] = Query(None),
-    role_id: Optional[int] = Query(None)
+    user_id: Optional[int] = Query(None)
     ):
     """
         Fetch detailed event info including venue, organizer, and DJs. 
         Public endpoint.
         THIS IS WHERE TICKETING INFO WILL BE DISPLAYED
     """
-    if user_id is None and role_id is None:
+    if user_id is None:
         print("Public")
         query = """
             SELECT 
@@ -471,7 +555,7 @@ async def get_event_details(
             WHERE e.id = $1;
         """
     else:
-        print(f"U id: {user_id}, R id: {role_id}")
+        print(f"U id: {user_id}")
         query = """
             SELECT 
                 e.id as event_id,
@@ -605,41 +689,86 @@ async def get_event_details(
         return JSONResponse(content=json.loads(json_str))
 
 @app.get("/events/by_dj/{dj_id}")
-async def get_djs_events(dj_id: int):
+async def get_djs_events(
+    dj_id: int,
+    user_id: Optional[int] = Query(None)
+):
     """Fetch all events for a specific DJ with the same format as the base events endpoint."""
-    query = """
-    SELECT 
-        e.id,
-        e.event_name,
-        e.date,
-        v.name as venue_name,
-        v.address as venue_address,
-        v.city as venue_city,
-        v.state as venue_state,
-        v.zip as venue_zip,
-        v.country as venue_country,
-        v.capacity as venue_capacity,
-        o.name as organizer_name,
-        (
-            SELECT array_agg(g.name)
-            FROM event_genres eg
-            JOIN genres g ON eg.genre_id = g.id
-            WHERE eg.event_id = e.id
-        ) as genres,
-        pe.event_poster,
-        pe.bio,
-        pe.featured
-    FROM published_events pe
-    JOIN event_data e ON pe.event_id = e.id
-    JOIN venues v ON e.venue_id = v.id
-    JOIN organizer o ON e.organizer_id = o.id
-    JOIN event_dj ed ON e.id = ed.event_id
-    WHERE ed.dj_id = $1;
-    """
+
+    if user_id is None:
+        print("public")
+        query = """
+            SELECT 
+                e.id,
+                e.event_name,
+                e.date,
+                v.name as venue_name,
+                v.address as venue_address,
+                v.city as venue_city,
+                v.state as venue_state,
+                v.zip as venue_zip,
+                v.country as venue_country,
+                v.capacity as venue_capacity,
+                o.name as organizer_name,
+                (
+                    SELECT array_agg(g.name)
+                    FROM event_genres eg
+                    JOIN genres g ON eg.genre_id = g.id
+                    WHERE eg.event_id = e.id
+                ) as genres,
+                pe.event_poster,
+                pe.bio,
+                pe.featured
+            FROM published_events pe
+            JOIN event_data e ON pe.event_id = e.id
+            JOIN venues v ON e.venue_id = v.id
+            JOIN organizer o ON e.organizer_id = o.id
+            JOIN event_dj ed ON e.id = ed.event_id
+            WHERE ed.dj_id = $1;
+        """
+    else:
+        print(f"U id: {user_id}")
+        query = """
+            SELECT 
+                e.id,
+                e.event_name,
+                e.date,
+                v.name as venue_name,
+                v.address as venue_address,
+                v.city as venue_city,
+                v.state as venue_state,
+                v.zip as venue_zip,
+                v.country as venue_country,
+                v.capacity as venue_capacity,
+                o.name as organizer_name,
+                (
+                    SELECT array_agg(g.name)
+                    FROM event_genres eg
+                    JOIN genres g ON eg.genre_id = g.id
+                    WHERE eg.event_id = e.id
+                ) as genres,
+                pe.event_poster,
+                pe.bio,
+                pe.featured,
+                CASE 
+                    WHEN uef.user_id IS NOT NULL THEN true
+                END AS following
+            FROM published_events pe
+            JOIN event_data e ON pe.event_id = e.id
+            JOIN venues v ON e.venue_id = v.id
+            JOIN organizer o ON e.organizer_id = o.id
+            JOIN event_dj ed ON e.id = ed.event_id
+            LEFT JOIN user_event_followers uef ON e.id = uef.event_id AND uef.user_id = $1
+            WHERE ed.dj_id = $2;
+        """
     
     pool = await db.get_connection()
     async with pool.acquire() as conn:
-        results = await conn.fetch(query, dj_id)
+        if user_id is not None:
+            results = await conn.fetch(query, user_id, dj_id)
+        else:
+            results = await conn.fetch(query, dj_id)
+
         events = [dict(row) for row in results]
         
         # Create a separate list for featured events
@@ -656,41 +785,85 @@ async def get_djs_events(dj_id: int):
         return JSONResponse(content=json.loads(json_str))
 
 @app.get("/events/by_venue/{venue_id}")
-async def get_venue_events(venue_id: int):
+async def get_venue_events(
+    venue_id: int,
+    user_id: Optional[int] = Query(None)
+):
     """Fetch all events for a specific venue with the same format as the base events endpoint."""
-    query = """
-    SELECT 
-        e.id,
-        e.event_name,
-        e.date,
-        v.name as venue_name,
-        v.address as venue_address,
-        v.city as venue_city,
-        v.state as venue_state,
-        v.zip as venue_zip,
-        v.country as venue_country,
-        v.capacity as venue_capacity,
-        v.profile_pic as profile_pic,
-        o.name as organizer_name,
-        (
-            SELECT array_agg(g.name)
-            FROM event_genres eg
-            JOIN genres g ON eg.genre_id = g.id
-            WHERE eg.event_id = e.id
-        ) as genres,
-        pe.event_poster,
-        pe.bio,
-        pe.featured
-    FROM published_events pe
-    JOIN event_data e ON pe.event_id = e.id
-    JOIN venues v ON e.venue_id = v.id
-    JOIN organizer o ON e.organizer_id = o.id
-    WHERE e.venue_id = $1;
-    """
+    if user_id is None:
+        print('public')
+        query = """
+            SELECT 
+                e.id,
+                e.event_name,
+                e.date,
+                v.name as venue_name,
+                v.address as venue_address,
+                v.city as venue_city,
+                v.state as venue_state,
+                v.zip as venue_zip,
+                v.country as venue_country,
+                v.capacity as venue_capacity,
+                v.profile_pic as profile_pic,
+                o.name as organizer_name,
+                (
+                    SELECT array_agg(g.name)
+                    FROM event_genres eg
+                    JOIN genres g ON eg.genre_id = g.id
+                    WHERE eg.event_id = e.id
+                ) as genres,
+                pe.event_poster,
+                pe.bio,
+                pe.featured
+            FROM published_events pe
+            JOIN event_data e ON pe.event_id = e.id
+            JOIN venues v ON e.venue_id = v.id
+            JOIN organizer o ON e.organizer_id = o.id
+            WHERE e.venue_id = $1;
+        """
+    else:
+        print(f"U id: {user_id}")
+        query = """
+            SELECT 
+                e.id,
+                e.event_name,
+                e.date,
+                v.name as venue_name,
+                v.address as venue_address,
+                v.city as venue_city,
+                v.state as venue_state,
+                v.zip as venue_zip,
+                v.country as venue_country,
+                v.capacity as venue_capacity,
+                v.profile_pic as profile_pic,
+                o.name as organizer_name,
+                (
+                    SELECT array_agg(g.name)
+                    FROM event_genres eg
+                    JOIN genres g ON eg.genre_id = g.id
+                    WHERE eg.event_id = e.id
+                ) as genres,
+                pe.event_poster,
+                pe.bio,
+                pe.featured,
+                CASE 
+                    WHEN uef.user_id IS NOT NULL THEN true
+                END AS following
+            FROM published_events pe
+            JOIN event_data e ON pe.event_id = e.id
+            JOIN venues v ON e.venue_id = v.id
+            JOIN organizer o ON e.organizer_id = o.id
+            LEFT JOIN user_event_followers uef ON e.id = uef.event_id AND uef.user_id = $1
+            WHERE e.venue_id = $2;
+        """
     
     pool = await db.get_connection()
     async with pool.acquire() as conn:
-        results = await conn.fetch(query, venue_id)
+        if user_id is not None:
+            results = await conn.fetch(query, user_id, venue_id)
+        else:
+            results = await conn.fetch(query, venue_id)
+
         events = [dict(row) for row in results]
         
         # Create a separate list for featured events

@@ -554,10 +554,8 @@ async def proxy_get_events(
                 response = await client.get(f"{DB_READER_SERVICE_URL}/events", timeout=30.0)
             else:
                 user_id = current_user.get('id')
-                role_id = current_user.get('role_id')
                 params = {
-                    "user_id": user_id,
-                    "role_id": role_id
+                    "user_id": user_id
                 }
                 print(f"Calling /events with {params}")
                 response = await client.get(f"{DB_READER_SERVICE_URL}/events", params=params, timeout=30.0)
@@ -578,12 +576,20 @@ async def proxy_get_events(
             raise HTTPException(status_code=500, detail=str(e))
 
 @app.get("/djs")
-async def proxy_get_djs():
+async def proxy_get_djs(
+    current_user: Optional[dict] = Security(get_current_user)
+):
     # ADD FOLLOWING FOR DJS
     """Proxy request for getting all DJs and their socials. Public endpoint."""
     async with httpx.AsyncClient() as client:
         try:
-            response = await client.get(f"{DB_READER_SERVICE_URL}/djs", timeout=30.0)
+            if current_user is None:
+                response = await client.get(f"{DB_READER_SERVICE_URL}/djs", timeout=30.0)
+            else:
+                params = {
+                    "user_id": current_user.get('id'),
+                }
+                response = await client.get(f"{DB_READER_SERVICE_URL}/djs", params=params, timeout=30.0)
             
             if response.status_code != 200:
                 raise HTTPException(status_code=response.status_code, detail="Failed to fetch DJs")
@@ -593,12 +599,21 @@ async def proxy_get_djs():
             raise HTTPException(status_code=500, detail=str(e))
         
 @app.get("/dj/{dj_id}")
-async def proxy_get_djs(dj_id: int):
+async def proxy_get_djs(
+    dj_id: int,
+    current_user: Optional[dict] = Security(get_current_user)
+):
     # ADD FOLLOWING FOR DJS
     """Proxy request for getting a DJ and their socials. Public endpoint."""
     async with httpx.AsyncClient() as client:
         try:
-            response = await client.get(f"{DB_READER_SERVICE_URL}/dj/{dj_id}", timeout=30.0)
+            if current_user is None:
+                response = await client.get(f"{DB_READER_SERVICE_URL}/dj/{dj_id}", timeout=30.0)
+            else:
+                params = {
+                    "user_id": current_user.get('id')
+                }
+                response = await client.get(f"{DB_READER_SERVICE_URL}/dj/{dj_id}", params=params, timeout=30.0)
             
             if response.status_code != 200:
                 raise HTTPException(status_code=response.status_code, detail=f"Failed to fetch DJ with id {dj_id}")
@@ -651,10 +666,8 @@ async def proxy_get_event_details(
 
             else:
                 user_id = current_user.get('id')
-                role_id = current_user.get('role_id')
                 params = {
-                    "user_id": user_id,
-                    "role_id": role_id
+                    "user_id": user_id
                 }
                 print(f"Calling /event/{event_id} with {params}")
                 response = await client.get(f"{DB_READER_SERVICE_URL}/event/{event_id}", params=params, timeout=30.0)
@@ -670,7 +683,11 @@ async def proxy_get_event_details(
             raise HTTPException(status_code=500, detail=str(e))
 
 @app.get("/event/by_entity/{entity_type}/{entity_id}")
-async def proxy_get_events_by_entity(entity_type: str, entity_id: int):
+async def proxy_get_events_by_entity(
+    entity_type: str, 
+    entity_id: int,
+    current_user: Optional[dict] = Security(get_current_user)
+):
     if entity_type in ENTITY_TYPES:
         route = ENTITY_TYPES.get(entity_type)
     else:
@@ -678,8 +695,16 @@ async def proxy_get_events_by_entity(entity_type: str, entity_id: int):
 
     async with httpx.AsyncClient() as client:
         try:
-            response = await client.get(f"{DB_READER_SERVICE_URL}/events/{route}/{entity_id}", timeout=10.0)
-            # print(response.json())
+            if current_user is None:
+                response = await client.get(f"{DB_READER_SERVICE_URL}/events/{route}/{entity_id}", timeout=10.0)
+            else:
+                user_id = current_user.get('id')
+                params = {
+                    "user_id": user_id,
+                }
+                response = await client.get(f"{DB_READER_SERVICE_URL}/events/{route}/{entity_id}", params=params, timeout=10.0)
+
+
             if response.status_code != 200:
                 raise HTTPException(status_code=response.status_code, detail="Failed to fetch events by entity")
             events_data = response.json()
