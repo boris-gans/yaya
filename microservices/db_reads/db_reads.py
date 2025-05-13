@@ -1044,13 +1044,13 @@ async def get_user_profile(user_id: int):
     async with pool.acquire() as conn:
         query = """
             SELECT
-                id AS user_id, attendance, 
+                id AS user_id, 
                 (
                     SELECT array_agg(g.name)
                     FROM user_genres ug
                     JOIN genres g ON ug.genre_id = g.id
                     WHERE ug.user_id = user_data.id
-                ) as genres
+                ) as genres,
             FROM user_data 
             WHERE id = $1;
         """
