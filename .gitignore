@@ -5,6 +5,17 @@ __pycache__/
 *.so
 .Python
 .pytest_cache/
+.mypy_cache/
+.ruff_cache/
+.pyright/
+*.egg-info/
+dist/
+build/
+.coverage
+coverage.xml
+htmlcov/
+.tox/
+.nox/
 
 # Virtual Environment
 .venv/
@@ -23,12 +34,22 @@ ENV/
 # IDE
 .idea/
 .vscode/
+.cursor/
 *.swp
 *.swo
 
 # Environment variables
 .env
 .env.*
+!.env.example
+.envrc
+.direnv/
 
 # Project specific
 testing.md
+dumps/
+*.log
+*.pid
+celerybeat-schedule
+celerybeat.pid
+trash.json

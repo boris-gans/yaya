@@ -7,7 +7,7 @@ from typing import Dict, Optional
 from google.protobuf.timestamp_pb2 import Timestamp
 from contextlib import asynccontextmanager
 from db_writes import write_service_pb2, write_service_pb2_grpc
-from dotenv import load_dotenv
+from dotenv import load_dotenv, find_dotenv
 from background_writes.celery_worker import publish_metric
 from enum import Enum
 from asyncio import create_task, TimeoutError
@@ -26,7 +26,7 @@ from fastapi.security import HTTPAuthorizationCredentials, HTTPBearer
 
 
 
-load_dotenv(override=True, dotenv_path='/Users/borisgans/personal/yaya/yaya_dev/.env')
+load_dotenv(find_dotenv(), override=True)
 
 
 # POSTGRE
@@ -522,7 +522,7 @@ async def background_write(data: dict):
 
     try:
         async with asyncio.timeout(0.3): # 0.5 seconds timeout to prevent blocking
-            print(f"Background writing: {data.get("metric_type")}, {data.get("event_id")}")
+            print(f"Background writing: {data.get('metric_type')}, {data.get('event_id')}")
             # Queue the task in Celery
             task = publish_metric.delay(
                 event_id=data.get("event_id"),

@@ -1,5 +1,5 @@
 from psycopg2.pool import SimpleConnectionPool
-from dotenv import load_dotenv
+from dotenv import load_dotenv, find_dotenv
 from concurrent import futures
 from grpc_reflection.v1alpha import reflection
 from google.protobuf.timestamp_pb2 import Timestamp
@@ -12,7 +12,7 @@ import write_service_pb2
 import write_service_pb2_grpc
 
 
-load_dotenv(override=True, dotenv_path='/Users/borisgans/personal/yaya/yaya_dev/.env')
+load_dotenv(find_dotenv(), override=True)
 
 
 POSTGRE_DB = os.getenv("POSTGRE_DB")
