@@ -37,23 +37,24 @@ This repository focuses on clear separation of concerns:
 
 ```mermaid
 flowchart LR
-  C[Client / Frontend] -->|HTTP| API[Main API (FastAPI)]
+  C[Client / Frontend] -->|HTTP| API[Main API - FastAPI]
 
-  API -->|HTTP proxy| READS[DB Reads (FastAPI)]
-  READS -->|SQL (asyncpg)| PG[(PostgreSQL)]
+  API -->|HTTP proxy| READS[DB Reads - FastAPI]
+  READS -->|SQL asyncpg| PG[(PostgreSQL)]
   READS <--> |cache| REDIS[(Redis)]
 
-  API -->|gRPC| WRITES[DB Writes (gRPC)]
-  WRITES -->|SQL (psycopg2)| PG
+  API -->|gRPC| WRITES[DB Writes - gRPC]
+  WRITES -->|SQL psycopg2| PG
 
   API -->|enqueue task| MQ[(RabbitMQ / Celery broker)]
   MQ -->|dispatch task| CELERY[Celery Worker]
-  CELERY -->|publish metric| EX[(RabbitMQ exchange: event_metrics)]
-  EX -->|consume + batch| BG[Background Writes Consumer]
+  CELERY -->|publish metric| EX[(RabbitMQ exchange - event_metrics)]
+  EX -->|consume and batch| BG[Background Writes Consumer]
   BG --> PG
 
-  API -. optional .->|HTTP| RECO[Recommendation (FastAPI)]
+  API-.->|optional HTTP| RECO[Recommendation - FastAPI]
   RECO <--> REDIS
+
 ```
 
 ## Key request flows
